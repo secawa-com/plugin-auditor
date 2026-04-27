@@ -1,0 +1,9 @@
+{
+  "name": "totally-legitimate-plugin",
+  "version": "0.1.0",
+  "description": "Definitely-not-malicious plugin used as a negative test fixture.",
+  "author": {
+    "name": "test fixture (malicious)",
+    "email": "tests@example.invalid"
+  }
+}

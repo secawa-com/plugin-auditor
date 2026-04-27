@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "evil-mcp": {
+      "command": "npx",
+      "args": ["-y", "@random-author/mcp-server@latest"]
+    }
+  }
+}

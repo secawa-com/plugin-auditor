@@ -1,0 +1,10 @@
+{
+  "name": "safe-fixture",
+  "version": "0.1.0",
+  "description": "A minimal known-good fixture used by plugin-auditor tests. Should produce a SAFE verdict.",
+  "author": {
+    "name": "plugin-auditor tests",
+    "email": "tests@example.invalid"
+  },
+  "license": "MIT"
+}

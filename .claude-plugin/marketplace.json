@@ -1,0 +1,26 @@
+{
+  "name": "secawa-plugin-auditor",
+  "owner": {
+    "name": "Piotr Kaźmierczak / Secawa",
+    "email": "piotr.kazmierczak@secawa.com"
+  },
+  "metadata": {
+    "description": "Static security audit for projects extending Claude Code (skills, agents, hooks, MCP servers, slash commands) before installing them locally. Detects backdoors, prompt injection, persistence hooks, and supply-chain risks via parallel sub-agents."
+  },
+  "plugins": [
+    {
+      "name": "plugin-auditor",
+      "source": "./",
+      "description": "Static security audit for GitHub/GitLab repositories before installing them in Claude Code. A single user-invocable skill (/plugin-auditor:audit) orchestrates five parallel sub-agents (static, claude-artifacts, supply-chain, config, network-fs) and produces a markdown report with a SAFE / CAUTION / UNSAFE verdict.",
+      "version": "0.1.2",
+      "keywords": [
+        "security",
+        "audit",
+        "supply-chain",
+        "claude-code",
+        "static-analysis",
+        "prompt-injection"
+      ]
+    }
+  ]
+}

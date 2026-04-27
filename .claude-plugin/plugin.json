@@ -1,0 +1,20 @@
+{
+  "name": "plugin-auditor",
+  "version": "0.1.2",
+  "description": "Static security audit for projects extending Claude (skills, agents, hooks, plugins, MCP servers, slash commands, etc.) before installing them in Claude Code. Detects backdoors, prompt injection, persistence hooks, and supply-chain risks via parallel sub-agents.",
+  "author": {
+    "name": "Piotr Kaźmierczak",
+    "email": "piotr.kazmierczak@secawa.com"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/secawa-com/plugin-auditor",
+  "repository": "https://github.com/secawa-com/plugin-auditor",
+  "keywords": [
+    "security",
+    "audit",
+    "supply-chain",
+    "claude-code",
+    "static-analysis",
+    "prompt-injection"
+  ]
+}

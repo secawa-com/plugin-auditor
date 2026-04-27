@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local audit working dirs (never commit)
+/tmp/
+audit-reports/
+
+# Claude Code transient and per-user settings
+.claude/local/
+.claude/settings.local.json
