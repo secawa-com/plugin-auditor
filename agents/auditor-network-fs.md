@@ -2,6 +2,7 @@
 name: auditor-network-fs
 description: Network and filesystem auditor sub-agent of the plugin-auditor plugin. Invoked by the audit skill orchestrator to extract every URL in the repository, classify each host against an allowlist, then scan for filesystem-scope violations (path traversal, access to ~/.ssh, ~/.aws, browser state, Claude Code paths), data exfiltration chains (read sensitive then transmit), persistent background processes, DNS-based exfiltration, reverse-tunnel tools, and risky telemetry. Returns a structured FAIL / CAUTION / OK report. Read-only. Not intended for direct invocation outside the audit skill.
 tools: Read, Grep, Glob, Bash
+disallowedTools: Edit, Write, NotebookEdit, WebFetch, WebSearch
 model: sonnet
 ---
 

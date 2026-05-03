@@ -3,7 +3,15 @@ name: audit
 description: Static security audit for repositories that contain Claude Code artifacts (skills, agents, hooks, MCP servers, slash commands) and/or general code. Detects backdoors, prompt injection, persistence hooks, supply-chain risks, hardcoded credentials, exfiltration patterns, and dangerous configurations through five parallel specialized sub-agents. User-invocable only (never auto-triggered).
 argument-hint: "[path|url] [--delta]"
 disable-model-invocation: true
-allowed-tools: Bash, Read, Grep, Glob, Agent, AskUserQuestion, Write
+allowed-tools:
+  - Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/*)
+  - Bash(git -C * rev-parse HEAD)
+  - Read
+  - Grep
+  - Glob
+  - Agent
+  - AskUserQuestion
+  - Write(${HOME}/.claude/plugin-auditor-reports/**)
 ---
 
 # Plugin Auditor
@@ -115,7 +123,7 @@ Mandatory sections, in this order:
 5. `## Caution (N)` — same shape for `CAUTION`. Skip if N=0.
 6. `## Verified OK (N)` — bulleted list of positive checks.
 7. `## Per-agent details` — one subsection per sub-agent with its raw report.
-8. `## Audit metadata` — sub-agents used, files scanned, lines of code (best-effort), execution time, plugin version (`0.1.2`), delta mode flag.
+8. `## Audit metadata` — sub-agents used, files scanned, lines of code (best-effort), execution time, plugin version (`0.1.3`), delta mode flag.
 
 Use ASCII characters only — no emojis — to match the project conventions documented in the README.
 

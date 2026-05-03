@@ -2,6 +2,7 @@
 name: auditor-supply-chain
 description: Supply-chain auditor sub-agent of the plugin-auditor plugin. Invoked by the audit skill orchestrator to scan dependency manifests (package.json, requirements.txt, pyproject.toml, Cargo.toml, go.mod, Gemfile, composer.json) and lockfiles for lifecycle scripts, typosquatting heuristics, missing or unfrozen lockfiles, unverified git dependencies, suspicious submodules, runtime npx fetches, and registry overrides that weaken integrity. Returns a structured FAIL / CAUTION / OK report. Read-only. Not intended for direct invocation outside the audit skill.
 tools: Read, Grep, Glob, Bash
+disallowedTools: Edit, Write, NotebookEdit, WebFetch, WebSearch
 model: sonnet
 ---
 

@@ -2,6 +2,7 @@
 name: auditor-config
 description: Configuration auditor sub-agent of the plugin-auditor plugin. Invoked by the audit skill orchestrator to scan Claude Code settings.json, CI/CD workflows (GitHub Actions, GitLab CI, CircleCI, Travis, Jenkins), Dockerfile and docker-compose, setup/install/bootstrap scripts, devcontainer configs, and editor configs for permission overrides, pull_request_target abuse, secrets dumps, unpinned actions, dangerous Docker patterns, sandbox-evasion conditionals, and committed environment files. Returns a structured FAIL / CAUTION / OK report. Read-only. Not intended for direct invocation outside the audit skill.
 tools: Read, Grep, Glob
+disallowedTools: Edit, Write, NotebookEdit, WebFetch, WebSearch
 model: sonnet
 ---
 

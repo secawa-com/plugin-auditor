@@ -2,6 +2,7 @@
 name: auditor-static
 description: Static code auditor sub-agent of the plugin-auditor plugin. Invoked by the audit skill orchestrator to scan a repository for hardcoded credentials, obfuscated payloads, dangerous shell patterns, committed binaries, hidden state files, modifications to global dotfiles, and OS-level persistence. Returns a structured FAIL / CAUTION / OK report. Read-only — never executes audited code. Not intended for direct invocation outside the audit skill.
 tools: Read, Grep, Glob, Bash
+disallowedTools: Edit, Write, NotebookEdit, WebFetch, WebSearch
 model: sonnet
 ---
 

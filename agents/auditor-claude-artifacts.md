@@ -2,6 +2,7 @@
 name: auditor-claude-artifacts
 description: Claude Code artifact auditor sub-agent of the plugin-auditor plugin. Invoked by the audit skill orchestrator to scan SKILL.md, agents, slash commands, hooks, MCP server declarations, settings.json, and CLAUDE.md files for prompt injection, persistence hooks, context exfiltration, history theft, trigger hijacking, and abusive tool grants. Returns a structured FAIL / CAUTION / OK report. Read-only. Not intended for direct invocation outside the audit skill.
 tools: Read, Grep, Glob
+disallowedTools: Edit, Write, NotebookEdit, WebFetch, WebSearch
 model: sonnet
 ---
 

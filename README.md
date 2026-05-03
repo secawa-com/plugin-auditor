@@ -2,9 +2,9 @@
 
 Static security audit for projects extending Claude (skills, agents, hooks, plugins, MCP servers, slash commands, etc.) before installing them in Claude Code. Detects backdoors, prompt injection, persistence hooks, and supply-chain risks via parallel sub-agents.
 
-**Autor**: Piotr Kaźmierczak - CEO [Secawa](https://secawa.com)
-**Licencja**: MIT
-**Wersja**: 0.1.2
+**Author**: Piotr Kaźmierczak - CEO [Secawa](https://secawa.com) \
+**License**: MIT \
+**Version**: 0.1.3
 
 ---
 
@@ -36,7 +36,7 @@ The plugin never executes audited code. It only reads, greps, and reasons.
    ```bash
    /plugin
    ```
-   `plugin-auditor` should appear with version `0.1.2`. Type `/` and start typing `plug` — the entry `/plugin-auditor:audit` should be listed in the slash menu.
+   `plugin-auditor` should appear with version `0.1.3`. Type `/` and start typing `plug` — the entry `/plugin-auditor:audit` should be listed in the slash menu.
 4. The first audit will create `~/.claude/plugin-auditor-reports/` automatically. No other system files are touched.
 
 ---
@@ -221,6 +221,31 @@ Past reports are never overwritten. The state directory is consulted only by `--
 - **Conservative defaults.** When in doubt, the risk model classifies a pattern as `CAUTION`, never as `OK`. Silence is not safety.
 - **No code execution.** The plugin never runs anything from the audited repository. Static analysis only — by design, not by accident.
 - **Test fixtures included.** The repository ships paired `safe-fixture/` and `malicious-fixture/` projects under `tests/fixtures/` so each sub-agent's domain has a known-good and known-bad reference to scan against.
+
+---
+
+## Trust model
+
+Plugin-auditor itself runs inside Claude Code with elevated trust — it reads your repositories and writes reports under `~/.claude/`. Its frontmatter is deliberately tightened so the plugin can only do what it advertises.
+
+**Tools the plugin grants itself** (declared in `agents/*.md` and `skills/audit/SKILL.md`):
+
+- `Read`, `Grep`, `Glob` — every component, every audit. Read-only inspection.
+- `Bash` — only for two narrow uses:
+  - the orchestrating skill runs `bash ${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/*` (helper scripts shipped with the plugin) and `git -C * rev-parse HEAD` (no other git verbs are pre-approved);
+  - sub-agents `auditor-static`, `auditor-supply-chain`, `auditor-network-fs` keep `Bash` in their allowlist for grep/find/awk/python invocations against the audited repository, plus the helper scripts above.
+- `Agent` — the orchestrator only. Used to fan out to the five sub-agents in parallel. Sub-agents themselves cannot spawn further sub-agents (a Claude Code platform limit, not just policy).
+- `Write` — the orchestrator only, restricted to `${HOME}/.claude/plugin-auditor-reports/**`. Reports and the delta-mode state file land there; no other path is pre-approved.
+- `AskUserQuestion` — the orchestrator only. Used for the post-report drill-down prompt.
+
+**Tools the plugin denies itself** (`disallowedTools` in every sub-agent):
+
+- `Edit`, `Write`, `NotebookEdit` — sub-agents never modify any file. The aggregated report is written by the orchestrator alone.
+- `WebFetch`, `WebSearch` — the audit is intentionally offline. Threat-intel signals come from the curated allowlist in `references/risk-model.md` and from local pattern matching, not from runtime network calls. This eliminates a class of exfiltration vectors where a malicious payload in the audited repo could try to coerce a sub-agent into beaconing.
+
+**What the plugin does not configure** (and you may want to add yourself in `settings.json`): blanket denies for outbound networking commands such as `Bash(curl:*)`, `Bash(wget:*)`, `Bash(nc:*)` if you frequently audit suspicious repositories. The plugin's own helper scripts never invoke those commands; an explicit `permissions.deny` pins that guarantee at the harness level.
+
+A reminder on Claude Code semantics: in subagent frontmatter `tools`/`disallowedTools` are real allow/deny lists enforced by the runtime. In skill frontmatter `allowed-tools` is a *pre-approval list* — it skips per-call permission prompts but is not itself a sandbox. Hard restrictions for skills must be expressed in `permissions.deny` of `settings.json`.
 
 ---
 
