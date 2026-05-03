@@ -1,6 +1,6 @@
 ---
 name: auditor-static
-description: Static code auditor sub-agent of the plugin-auditor plugin. Invoked by the audit skill orchestrator to scan a repository for hardcoded credentials, obfuscated payloads, dangerous shell patterns, committed binaries, hidden state files, modifications to global dotfiles, and OS-level persistence. Returns a structured FAIL / CAUTION / OK report. Read-only — never executes audited code. Not intended for direct invocation outside the audit skill.
+description: Static code auditor sub-agent of the plugin-auditor plugin. Invoked by the audit skill orchestrator to scan a repository for hardcoded credentials, obfuscated payloads, dangerous shell patterns, committed binaries, hidden state files, modifications to global dotfiles, and OS-level persistence. Returns a structured FAIL / CAUTION / OK report. Read-only with respect to the audited repository (never executes audited code; may run plugin's own helper scripts under SCRIPTS_PATH). Not intended for direct invocation outside the audit skill.
 tools: Read, Grep, Glob, Bash
 disallowedTools: Edit, Write, NotebookEdit, WebFetch, WebSearch
 model: sonnet
@@ -18,6 +18,8 @@ The orchestrating skill (`skills/audit/SKILL.md`) passes you:
 - `REFERENCE_PATH` — absolute path to `references/static-checklist.md`.
 - `SCRIPTS_PATH` — absolute path to `skills/audit/scripts/`.
 - `CHANGED_FILES` (optional) — newline-separated list of paths if delta mode is active. If empty or absent, scan the whole repository.
+
+**Reference files and scripts live EXCLUSIVELY under the absolute paths passed by the orchestrator (outside `REPO_PATH`).** Never search for `references/...` or `scripts/...` inside `REPO_PATH`. If any of the `*_PATH` variables contains a literal `${...}` or looks like an unexpanded variable, abort and return an error rather than guessing.
 
 Always read `REFERENCE_PATH` and `${SCRIPTS_PATH}/../references/risk-model.md` before starting. They define the patterns and severity mapping you must use.
 

@@ -4,7 +4,7 @@ Static security audit for projects extending Claude (skills, agents, hooks, plug
 
 **Author**: Piotr Kaźmierczak - CEO [Secawa](https://secawa.com) \
 **License**: MIT \
-**Version**: 0.1.3
+**Version**: 0.1.4
 
 ---
 
@@ -36,7 +36,7 @@ The plugin never executes audited code. It only reads, greps, and reasons.
    ```bash
    /plugin
    ```
-   `plugin-auditor` should appear with version `0.1.3`. Type `/` and start typing `plug` — the entry `/plugin-auditor:audit` should be listed in the slash menu.
+   `plugin-auditor` should appear with version `0.1.4`. Type `/` and start typing `plug` — the entry `/plugin-auditor:audit` should be listed in the slash menu.
 4. The first audit will create `~/.claude/plugin-auditor-reports/` automatically. No other system files are touched.
 
 ---
@@ -62,7 +62,7 @@ Restart Claude Code after every update.
 
 ## Usage
 
-The plugin exposes a single slash command — `/plugin-auditor:audit` — which is the namespaced form Claude Code generates for the `audit` skill inside the `plugin-auditor` plugin. There is no shorter alias; pluginowe skille są zawsze namespace'owane (zgodnie z dokumentacją Claude Code), żeby pluginy nie kolidowały o nazwy.
+The plugin exposes a single slash command — `/plugin-auditor:audit` — which is the namespaced form Claude Code generates for the `audit` skill inside the `plugin-auditor` plugin. There is no shorter alias; per the Claude Code docs, plugin skills are always namespaced so that plugins cannot collide on names.
 
 ### Audit the current working directory
 
@@ -92,9 +92,11 @@ Use when the project sits outside your current shell directory.
 What happens:
 
 - The URL is validated against an allowlist (`github.com`, `gitlab.com`).
-- The repository is shallow-cloned (`--depth 1 --no-tags --single-branch`) into `/tmp/plugin-auditor/{repo}-{sha}/`.
+- The repository is shallow-cloned (`--depth 1 --no-tags --single-branch`) into `${PWD}/.plugin-auditor-tmp/{repo}-{timestamp}/`. The clone lands in the current working directory (not `/tmp/`) so that Claude Code sub-agents can Read/Grep/Glob it without the user having to extend `permissions.additionalDirectories`. After the report is produced the skill offers to clean up the cloned directories (see "Cleanup" below).
 - No git config is touched and no credentials are used (public repositories only).
 - The audit then proceeds as if the repository were a local path.
+
+> **Tip:** if you use the plugin regularly, add `.plugin-auditor-tmp/` to your project's `.gitignore` — the skill offers cleanup by default, but that line protects you from accidentally committing a clone if you skip the cleanup step.
 
 ### Delta mode — audit only what changed since the last audit
 
@@ -154,7 +156,7 @@ Each sub-agent is a self-contained markdown definition under `agents/`. The orch
 
 ## How it works
 
-1. **Input resolution.** The skill resolves the input to a local repository path, either by using the current working directory, an explicit path, or by shallow-cloning a remote URL into `/tmp/plugin-auditor/`.
+1. **Input resolution.** The skill resolves the input to a local repository path, either by using the current working directory, an explicit path, or by shallow-cloning a remote URL into `${PWD}/.plugin-auditor-tmp/`.
 2. **Parallel sub-agents.** All five sub-agents are launched in a single message. Each reads the relevant reference file from `references/`, calls the appropriate helper script from `scripts/`, and returns a structured partial report.
 3. **Risk-model aggregation.** Findings are mapped through `references/risk-model.md` which classifies every pattern as `OK`, `CAUTION`, or `FAIL`. The verdict follows the worst level found.
 4. **Report and state.** A timestamped markdown report is written to `~/.claude/plugin-auditor-reports/`, and a state file records the audited SHA so future audits can run in delta mode.
@@ -329,7 +331,7 @@ plugin-auditor/
 ## Conventions
 
 - All plugin content (SKILL.md, agents, references, scripts, README, reports) is written in **English**.
-- Helper scripts are **idempotent** and **read-only**. They never modify files outside `~/.claude/plugin-auditor-reports/` and `/tmp/plugin-auditor/`.
+- Helper scripts are **idempotent** and **read-only**. They never modify files outside `~/.claude/plugin-auditor-reports/` and `${PWD}/.plugin-auditor-tmp/`.
 - File paths in reports always include line numbers (`path:line`) so they are clickable in modern terminals and editors.
 - Severity levels follow Anthropic's enterprise risk-tier vocabulary (`high concern`, `medium concern`).
 

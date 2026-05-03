@@ -1,6 +1,6 @@
 ---
 name: auditor-supply-chain
-description: Supply-chain auditor sub-agent of the plugin-auditor plugin. Invoked by the audit skill orchestrator to scan dependency manifests (package.json, requirements.txt, pyproject.toml, Cargo.toml, go.mod, Gemfile, composer.json) and lockfiles for lifecycle scripts, typosquatting heuristics, missing or unfrozen lockfiles, unverified git dependencies, suspicious submodules, runtime npx fetches, and registry overrides that weaken integrity. Returns a structured FAIL / CAUTION / OK report. Read-only. Not intended for direct invocation outside the audit skill.
+description: Supply-chain auditor sub-agent of the plugin-auditor plugin. Invoked by the audit skill orchestrator to scan dependency manifests (package.json, requirements.txt, pyproject.toml, Cargo.toml, go.mod, Gemfile, composer.json) and lockfiles for lifecycle scripts, typosquatting heuristics, missing or unfrozen lockfiles, unverified git dependencies, suspicious submodules, runtime npx fetches, and registry overrides that weaken integrity. Returns a structured FAIL / CAUTION / OK report. Read-only with respect to the audited repository (never installs dependencies or executes audited code; uses Bash only for inline Levenshtein computation). Not intended for direct invocation outside the audit skill.
 tools: Read, Grep, Glob, Bash
 disallowedTools: Edit, Write, NotebookEdit, WebFetch, WebSearch
 model: sonnet
@@ -18,6 +18,8 @@ Supply-chain risk is the most common path to a compromise in modern dev tooling.
 - `CHANGED_FILES` (optional) — newline-separated list for delta mode.
 
 Read both reference files on every run.
+
+**Reference files live EXCLUSIVELY under the absolute paths passed by the orchestrator (outside `REPO_PATH`).** Never search for `references/...` inside `REPO_PATH`. If `REFERENCE_PATH` contains a literal `${...}` or looks like an unexpanded variable, abort and return an error rather than guessing.
 
 ## Files to scan
 

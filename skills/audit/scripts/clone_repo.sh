@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # clone_repo.sh <url>
 #
-# Safely shallow-clones a GitHub or GitLab URL to a temporary directory under
-# /tmp/plugin-auditor/. URL is validated against an allowlist; no git config
-# is touched; no credentials are used.
+# Safely shallow-clones a GitHub or GitLab URL to a sandboxed directory inside
+# the caller's CWD: ${PWD}/.plugin-auditor-tmp/. We clone into CWD (not /tmp/)
+# so that Claude Code sub-agents can Read/Grep/Glob the clone without the user
+# having to extend permissions.additionalDirectories.
+#
+# URL is validated against an allowlist; no git config is touched; no
+# credentials are used.
 #
 # Prints the absolute path to the cloned directory on stdout.
 # Exits non-zero with an error on stderr if the URL is rejected.
@@ -62,7 +66,7 @@ PATH_PART="${URL#https://*/}"
 PATH_PART="${PATH_PART%.git}"
 SLUG="$(echo "${PATH_PART}" | tr '/' '-' | tr -cd 'a-zA-Z0-9-_')"
 
-DEST_BASE="/tmp/plugin-auditor"
+DEST_BASE="${PWD}/.plugin-auditor-tmp"
 mkdir -p "${DEST_BASE}"
 
 # Use a unique destination per clone to avoid stomping on prior clones.

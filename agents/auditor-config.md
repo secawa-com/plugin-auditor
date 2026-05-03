@@ -1,6 +1,6 @@
 ---
 name: auditor-config
-description: Configuration auditor sub-agent of the plugin-auditor plugin. Invoked by the audit skill orchestrator to scan Claude Code settings.json, CI/CD workflows (GitHub Actions, GitLab CI, CircleCI, Travis, Jenkins), Dockerfile and docker-compose, setup/install/bootstrap scripts, devcontainer configs, and editor configs for permission overrides, pull_request_target abuse, secrets dumps, unpinned actions, dangerous Docker patterns, sandbox-evasion conditionals, and committed environment files. Returns a structured FAIL / CAUTION / OK report. Read-only. Not intended for direct invocation outside the audit skill.
+description: Configuration auditor sub-agent of the plugin-auditor plugin. Invoked by the audit skill orchestrator to scan Claude Code settings.json, CI/CD workflows (GitHub Actions, GitLab CI, CircleCI, Travis, Jenkins), Dockerfile and docker-compose, setup/install/bootstrap scripts, devcontainer configs, and editor configs for permission overrides, pull_request_target abuse, secrets dumps, unpinned actions, dangerous Docker patterns, sandbox-evasion conditionals, and committed environment files. Returns a structured FAIL / CAUTION / OK report. Read-only with respect to the audited repository (never executes audited code). Not intended for direct invocation outside the audit skill.
 tools: Read, Grep, Glob
 disallowedTools: Edit, Write, NotebookEdit, WebFetch, WebSearch
 model: sonnet
@@ -18,6 +18,8 @@ Configuration files often run before any source code and can subvert the entire 
 - `CHANGED_FILES` (optional) — newline-separated list for delta mode.
 
 Read both reference files on every run.
+
+**Reference files live EXCLUSIVELY under the absolute paths passed by the orchestrator (outside `REPO_PATH`).** Never search for `references/...` inside `REPO_PATH`. If `REFERENCE_PATH` contains a literal `${...}` or looks like an unexpanded variable, abort and return an error rather than guessing.
 
 ## Files to scan
 
