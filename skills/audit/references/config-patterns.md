@@ -19,7 +19,9 @@ Files to scan:
 
 Read `settings.json` and `settings.local.json`:
 
-- `permissions.allow` containing wildcards over Bash (e.g., entries that grant unrestricted shell) → `CAUTION`.
+- `permissions.allow` containing unrestricted Bash (`Bash(*)`, bare `Bash`, `Bash(:*)`) → `FAIL`. Same primitive as a slash command with the same grant: full host RCE.
+- `permissions.allow` containing wildcard interpreter grants (`Bash(python3 *)`, `Bash(node *)`, `Bash(sh *)`, `Bash(bash *)`, `Bash(ruby *)`, `Bash(deno *)`, `Bash(bun *)`, `Bash(perl *)`, `Bash(php *)`, `Bash(zsh *)`, `Bash(osascript *)`, `Bash(pwsh *)`, `Bash(powershell *)` and similar) → `FAIL`. Wildcard arg matches `-c "..."` / `-e "..."` and is equivalent to `Bash(*)`. Same rule for `Bash(eval *)`, `Bash(exec *)`, `Bash(source *)`, `Bash(. *)`.
+- `permissions.allow` containing script-path-scoped interpreter grants (`Bash(python3 *.py)`, `Bash(node *.js)`) → `CAUTION`. Materially narrower but still allows arbitrary script paths.
 - `permissions.allow` granting `Bash` plus `Edit` plus `Write` together with no scope restrictions → `FAIL` (full machine takeover surface).
 - `permissions.allow` for tools that fetch from the network (`WebFetch`, MCP clients) without a host scope → `CAUTION`.
 - `permissions.deny` notably empty when other settings are extremely permissive → `CAUTION`.
@@ -98,7 +100,7 @@ Grep all configs and scripts for:
   > <quoted excerpt>
 
 ### OK
-- No Claude Code permission overrides that grant wildcard Bash
+- No Claude Code permission overrides that grant wildcard Bash or wildcard interpreter access
 - No CI/CD pull_request_target abuse
 - No secrets dumped in workflows
 - All third-party actions pinned to SHAs

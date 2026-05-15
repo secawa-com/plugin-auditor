@@ -72,7 +72,7 @@ for that verdict. End with a clear recommendation: "Install with normal caution.
 
 ## Audit metadata
 
-- **plugin-auditor version:** 0.1.4
+- **plugin-auditor version:** 0.1.5
 - **Repository path:** `<absolute path>`
 - **Repository origin:** `<git remote URL or "local checkout">`
 - **HEAD SHA:** `<full SHA>`

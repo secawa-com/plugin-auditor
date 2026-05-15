@@ -4,6 +4,24 @@ All notable changes to `plugin-auditor` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.5] - 2026-05-15
+
+### Fixed
+- **Wildcard interpreter grants in `allowed-tools` were classified as CAUTION instead of FAIL.** Patterns like `Bash(python3 *)`, `Bash(node *)`, `Bash(sh *)`, `Bash(bash *)`, `Bash(ruby *)`, `Bash(deno *)` (and similar interpreters with `*` argument) are RCE-equivalent to `Bash(*)`: the wildcard matches `-c "..."` / `-e "..."` / arbitrary file paths, so the model can run any code on the host. The risk model now flags them as FAIL across slash commands (`commands/*.md`), skills (`SKILL.md`), agents (`agents/*.md` `tools` field), and `settings.json` (`permissions.allow`). Same treatment for shell evaluation builtins (`Bash(eval *)`, `Bash(exec *)`, `Bash(source *)`, `Bash(. *)`).
+- **`Bash(*)`, bare `Bash`, and `Bash(:*)` were also CAUTION.** Promoted to FAIL for consistency: an unrestricted shell grant is the canonical full-host RCE primitive, not a yellow flag.
+
+### Added
+- New severity bucket: script-path-scoped interpreter grants (`Bash(python3 *.py)`, `Bash(node *.js)`, `Bash(ruby *.rb)`) are now CAUTION. Materially narrower than the wildcard form (no inline `-c`/`-e`), but an attacker who can drop a file in CWD still wins. Recommend pinning to a specific module or script path.
+- Tightly pinned interpreter invocations (`Bash(python3 -m pytest *)`, `Bash(npm run lint)`, `Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/*.sh)`) are explicitly OK at the permission-grant level (the underlying script is still assessed by the static checklist).
+- Expanded the interpreter catalogue beyond the obvious set: `bun`, `osascript` (macOS GUI shell), `pwsh` / `powershell` (cross-platform), `zsh`, `php`, `perl`, plus shell evaluation builtins (`eval`, `exec`, `source`, `.`).
+
+### Changed
+- Tool-grant rules now apply symmetrically to `allowed-tools` (commands, skills) and `tools` (sub-agents). A sub-agent with `tools: Bash(python3 *)` has the same RCE primitive as a slash command with the same grant, and is judged the same way.
+- Updated `claude-artifacts-checklist.md` (section 6), `risk-model.md` (new "Slash command and agent tool grants" FAIL block plus revised CAUTION/OK rows), `config-patterns.md` (section 1, `permissions.allow` rules), and `auditor-claude-artifacts.md` (workflow step 6) to reflect the new model.
+
+### Notes
+- This is a risk-model patch, not an API change. Reports produced by the auditor on repos that previously came back CAUTION because of a wildcard interpreter grant will now come back UNSAFE. If you maintain a plugin that uses `Bash(python3 *)` etc. and you trust the slash command body, narrow the grant to the specific script (`Bash(python3 ./scripts/foo.py)`) or module (`Bash(python3 -m mypackage *)`) to clear the FAIL.
+
 ## [0.1.4] - 2026-05-04
 
 ### Fixed

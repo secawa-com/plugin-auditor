@@ -81,11 +81,15 @@ For each MCP server in `.mcp.json` or any referenced manifest:
 - `env` injecting variables that look like credentials forwarded out → `FAIL`.
 - A server that is not pinned to a specific version (any package range, `latest`, `next`) → `CAUTION`.
 
-### 6. Slash command tool grants
+### 6. Slash command and agent tool grants
 
-For each `commands/*.md`, parse the YAML frontmatter:
+For each `commands/*.md`, parse the YAML frontmatter `allowed-tools`. The same rules apply to `allowed-tools` in `SKILL.md` and to `tools` in agent definitions (`agents/*.md`): a sub-agent with `tools: Bash(python3 *)` has the same RCE primitive as a slash command with the same grant.
 
-- `allowed-tools` field present and includes `Bash` without restrictions (e.g., `Bash(*)`, `Bash`, `Bash(:*)`) → `CAUTION`.
+- `allowed-tools` (or agent `tools`) includes `Bash` without restrictions: `Bash(*)`, bare `Bash`, `Bash(:*)` → `FAIL`. Unrestricted shell on the host is a full code-execution primitive equivalent to handing over the machine.
+- `allowed-tools` (or agent `tools`) includes `Bash(<interpreter> *)` for any general-purpose language interpreter or shell with a wildcard argument: `Bash(python *)`, `Bash(python3 *)`, `Bash(node *)`, `Bash(deno *)`, `Bash(bun *)`, `Bash(ruby *)`, `Bash(perl *)`, `Bash(php *)`, `Bash(sh *)`, `Bash(bash *)`, `Bash(zsh *)`, `Bash(osascript *)`, `Bash(pwsh *)`, `Bash(powershell *)` and similar → `FAIL`. Wildcard args allow `-c "..."` / `-e "..."` / arbitrary file paths, which is equivalent to `Bash(*)` in attack surface (full RCE on the host).
+- `allowed-tools` (or agent `tools`) includes shell evaluation builtins with wildcard arguments: `Bash(eval *)`, `Bash(exec *)`, `Bash(source *)`, `Bash(. *)` → `FAIL`. Direct shell evaluation primitives.
+- `allowed-tools` (or agent `tools`) includes a narrowed interpreter pattern that excludes inline `-c`/`-e` evaluation but still permits arbitrary script paths: `Bash(python3 *.py)`, `Bash(node *.js)`, `Bash(ruby *.rb)`, `Bash(php *.php)` → `CAUTION`. Materially narrower than the wildcard form, but an attacker who can drop a file in the working directory still wins. Recommend pinning to a specific script path or module.
+- `allowed-tools` (or agent `tools`) includes a tightly scoped interpreter invocation pinned to a specific module, script, or subcommand: `Bash(python3 -m pytest *)`, `Bash(node ./scripts/build.js)`, `Bash(npm run lint)`, `Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/*.sh)` → `OK` for this rule. Assess the underlying script separately as part of the static checklist.
 - `allowed-tools` includes `Bash(curl:*)` or `Bash(wget:*)` paired with no domain restriction → `CAUTION`.
 - `allowed-tools` grants `Edit`, `Write`, or `MultiEdit` to a command whose body fetches from the network → `FAIL`.
 

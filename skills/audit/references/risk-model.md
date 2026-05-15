@@ -47,6 +47,16 @@ Severity vocabulary follows Anthropic's enterprise risk-tier guidance:
 | Trigger hijacking | description like "Use this skill for everything" or "Always activate this skill" | claude-artifacts |
 | Override safety rails | "bypass safety", "override Anthropic policy", "act as DAN" | claude-artifacts |
 
+### Slash command and agent tool grants
+
+| Pattern | Example signature | Domain |
+|---------|-------------------|--------|
+| Unrestricted Bash grant in slash command, skill, or agent | `allowed-tools` or agent `tools` contains `Bash(*)`, bare `Bash`, or `Bash(:*)` | claude-artifacts |
+| Wildcard interpreter grant (full RCE equivalent) | `Bash(python3 *)`, `Bash(python *)`, `Bash(node *)`, `Bash(deno *)`, `Bash(bun *)`, `Bash(ruby *)`, `Bash(perl *)`, `Bash(php *)`, `Bash(sh *)`, `Bash(bash *)`, `Bash(zsh *)`, `Bash(osascript *)`, `Bash(pwsh *)`, `Bash(powershell *)` and similar interpreters with `*` argument | claude-artifacts |
+| Wildcard shell evaluation builtin | `Bash(eval *)`, `Bash(exec *)`, `Bash(source *)`, `Bash(. *)` | claude-artifacts |
+
+A wildcard interpreter grant has the same attack surface as `Bash(*)`: the wildcard matches `-c "..."` / `-e "..."` / any file path, so the model can run arbitrary code on the host. Treat all of the above as full RCE primitives.
+
 ### Persistence in Claude Code
 
 | Pattern | Example signature | Domain |
@@ -102,7 +112,7 @@ Severity vocabulary follows Anthropic's enterprise risk-tier guidance:
 | Git dependency to a non-official fork | `git+https://github.com/<random-user>/<package>` instead of upstream | supply-chain |
 | Typosquatting heuristic match | dependency name is one Levenshtein edit from a popular package | supply-chain |
 | Missing or unfrozen lockfile | `package.json` without `package-lock.json`, or `pyproject.toml` without `poetry.lock`/`uv.lock` | supply-chain |
-| Broad permission allowlist | `permissions.allow` enables wildcards over Bash | config |
+| Narrowed interpreter grant in `permissions.allow` | `permissions.allow` contains script-path-scoped interpreter entries like `Bash(python3 *.py)` (no inline `-c`/`-e` but arbitrary file path) | config |
 | Committed `.env` file | `.env` (not `.env.example`) is in the repo | config, static |
 | Hidden state files | `.DS_Store`, `.git-credentials`, `.npmrc` with auth tokens | static |
 | Long-running background process | `nohup`, `setsid`, `disown`, trailing `&` outside dev scripts | static, network-fs |
@@ -111,7 +121,7 @@ Severity vocabulary follows Anthropic's enterprise risk-tier guidance:
 | Broad glob in skill or script | `**/*` reaching outside the repository directory | network-fs |
 | Dockerfile `ADD` from URL | `ADD https://...` (download + extract in build) | config |
 | Dockerfile fetch-and-pipe inside `RUN` | shell pipe of a downloaded script inside a build stage | config |
-| Slash command with broad tool grant | `allowed-tools` includes wildcard Bash access | claude-artifacts |
+| Narrowed interpreter grant (script-path scoped) | `Bash(python3 *.py)`, `Bash(node *.js)`, `Bash(ruby *.rb)` (no `-c`/`-e` but arbitrary file path) | claude-artifacts |
 | Skill description spanning many domains | overly broad description that hijacks unrelated triggers | claude-artifacts |
 | Telemetry to unknown endpoint | analytics or telemetry pointing at a non-standard domain | network-fs |
 | Submodule from a non-official source | `.gitmodules` URL is not the upstream project | supply-chain |
@@ -155,7 +165,7 @@ The report should explicitly enumerate positive checks so the user sees what was
 | No CI/CD abuse | Workflows pin actions to SHAs, do not use `pull_request_target` unsafely, do not dump secrets. |
 | Network calls only to allowlisted domains | Every fetched URL is on the standard allowlist. |
 | MCP servers pinned | If MCP servers are declared, they are pinned to specific versions and not fetched at runtime. |
-| Slash commands scoped | `allowed-tools` are explicit, not wildcard. |
+| Slash commands and agents scoped | `allowed-tools` and agent `tools` are explicit (specific module, script path, or subcommand), no `Bash(*)` and no wildcard interpreter grants. |
 
 ---
 

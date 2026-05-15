@@ -4,7 +4,7 @@ Static security audit for projects extending Claude (skills, agents, hooks, plug
 
 **Author**: Piotr Kaźmierczak - CEO [Secawa](https://secawa.com) \
 **License**: MIT \
-**Version**: 0.1.4
+**Version**: 0.1.5
 
 ---
 
@@ -36,7 +36,7 @@ The plugin never executes audited code. It only reads, greps, and reasons.
    ```bash
    /plugin
    ```
-   `plugin-auditor` should appear with version `0.1.4`. Type `/` and start typing `plug` — the entry `/plugin-auditor:audit` should be listed in the slash menu.
+   `plugin-auditor` should appear with version `0.1.5`. Type `/` and start typing `plug` — the entry `/plugin-auditor:audit` should be listed in the slash menu.
 4. The first audit will create `~/.claude/plugin-auditor-reports/` automatically. No other system files are touched.
 
 ---
