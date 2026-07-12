@@ -94,6 +94,7 @@ A wildcard interpreter grant has the same attack surface as `Bash(*)`: the wildc
 | Inline runtime decode followed by execution | base64 / zlib / hex decode whose result is fed to a shell or interpreter | static |
 | Reverse-shell signature | `bash -i >& /dev/tcp/...`, `nc -e /bin/sh ...`, Python one-liner combining `socket` + `subprocess` + `os` | static, network-fs |
 | Encoded shell in JSON/YAML | base64-encoded shell in any config file | static, config |
+| Invisible / bidi Unicode in a Claude artifact | zero-width (U+200B-200D, U+FEFF), bidi override (U+202A-202E, U+2066-2069), or other invisible format char inside SKILL.md, an agent, command, CLAUDE.md, hook, `.mcp.json`, or plugin.json (hidden characters steering an LLM) | static, claude-artifacts |
 
 ### CI/CD abuse
 

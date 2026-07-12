@@ -41,6 +41,19 @@ Run `bash <scripts>/scan_obfuscation.sh <REPO_PATH>`. The script reports:
 
 Each match is a `FAIL`.
 
+The digest / git-SHA exception keeps legitimate pinning (`@sha256:`, action SHAs, lockfile `integrity`) out; `re.compile` and `bytes([0])` do not read as decode-then-execute.
+
+### 2a. Invisible and deceptive Unicode
+
+Run `bash <scripts>/scan_unicode.sh <REPO_PATH>`. The script reports characters a human reviewer cannot see but a language model reads:
+
+- `zero_width` — U+200B/200C/200D/2060/FEFF.
+- `bidi_override` — U+202A-202E, U+2066-2069 (visually reorder text).
+- `invisible_format` — other Cf/Cc format or control characters.
+- `homoglyph` — Cyrillic/Greek letters rendered like ASCII Latin.
+
+Inside a Claude artifact (SKILL.md, agent, command, CLAUDE.md, hook, `.mcp.json`, plugin.json) these are a `FAIL`: hidden characters in an instruction that steers an LLM are a prompt-injection vector. In ordinary source they are `CAUTION`. This is a mechanical detector; the artifact auditor's raw-bytes check relies on it rather than reproducing it.
+
 ### 3. Reverse-shell signatures
 
 Grep for these literal patterns (case-sensitive):
@@ -131,6 +144,7 @@ Return a single markdown block:
 ### OK
 - No matches against the secret catalogue (scan_secrets.sh: 0 matches; note: runtime-concatenated secrets are out of scope)
 - No obfuscated payloads detected (scan_obfuscation.sh: 0 matches)
+- No invisible or deceptive Unicode detected (scan_unicode.sh: 0 matches)
 - No reverse-shell signatures detected
 - No modifications to global dotfiles
 - No OS persistence patterns detected

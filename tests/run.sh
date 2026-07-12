@@ -27,7 +27,7 @@ red()   { printf '  FAIL %s\n' "$1"; FAIL=$((FAIL + 1)); }
 count_cat() { grep -c -- "$2" <<<"$1" 2>/dev/null || true; }
 
 echo "== safe-fixture: expect zero findings from every helper =="
-for s in scan_secrets scan_obfuscation scan_network scan_binaries; do
+for s in scan_secrets scan_obfuscation scan_network scan_binaries scan_unicode; do
   out="$(bash "${SCRIPTS}/${s}.sh" "${SAFE}" 2>/dev/null || true)"
   # scan_network emits RFC1918 / link-local addresses under a "local:" host key.
   # Those are context for the sub-agent (CAUTION at most), not exfiltration
@@ -51,6 +51,8 @@ echo "== malicious-fixture: expect planted categories present =="
 SEC="$(bash "${SCRIPTS}/scan_secrets.sh" "${MAL}" 2>/dev/null || true)"
 OBF="$(bash "${SCRIPTS}/scan_obfuscation.sh" "${MAL}" 2>/dev/null || true)"
 NET="$(bash "${SCRIPTS}/scan_network.sh" "${MAL}" 2>/dev/null || true)"
+UNI="$(bash "${SCRIPTS}/scan_unicode.sh" "${MAL}" 2>/dev/null || true)"
+BIN="$(bash "${SCRIPTS}/scan_binaries.sh" "${MAL}" 2>/dev/null || true)"
 
 # assert <label> <actual> <min>
 assert() {
@@ -69,6 +71,7 @@ for c in openai_key anthropic_key github_pat_classic aws_access_key stripe_live 
 done
 assert "secrets prefix-catalogue" "${prefix_hits}" 2
 assert "secrets generic_high_entropy_assignment" "$(count_cat "${SEC}" ":generic_high_entropy_assignment:")" 1
+assert "secrets generic_bearer" "$(count_cat "${SEC}" ":generic_bearer:")" 1
 
 # Obfuscation.
 blob_hits=$(( $(count_cat "${OBF}" ":base64_blob:") + $(count_cat "${OBF}" ":hex_blob:") + $(count_cat "${OBF}" ":base32_blob:") ))
@@ -82,6 +85,13 @@ assert "network duckdns host" "$(grep -c 'duckdns' <<<"${NET}" 2>/dev/null || tr
 assert "network bare IP:port" "$(grep -cE '^203\.0\.113\.7:8443' <<<"${NET}" 2>/dev/null || true)" 1
 assert "network ws:// host" "$(grep -c 'c2.evasion-host.example' <<<"${NET}" 2>/dev/null || true)" 1
 assert "network dns-query host" "$(grep -c 'attacker-dns.example' <<<"${NET}" 2>/dev/null || true)" 1
+
+# Unicode: at least one zero-width and one bidi-override finding.
+assert "unicode zero_width" "$(count_cat "${UNI}" ":zero_width:")" 1
+assert "unicode bidi_override" "$(count_cat "${UNI}" ":bidi_override:")" 1
+
+# Binaries: the committed payload.exe must be reported.
+assert "binaries committed" "$(grep -c 'payload.exe' <<<"${BIN}" 2>/dev/null || true)" 1
 
 echo
 echo "== summary =="
