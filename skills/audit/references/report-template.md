@@ -82,7 +82,7 @@ Each finding carries a provenance tag: `[mechanical]` for a deterministic detect
 
 ## Audit metadata
 
-- **plugin-auditor version:** 0.2.0
+- **plugin-auditor version:** 0.3.0
 - **Repository path:** `<absolute path>`
 - **Repository origin:** `<git remote URL or "local checkout">`
 - **HEAD SHA:** `<full SHA>`

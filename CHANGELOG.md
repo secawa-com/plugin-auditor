@@ -4,6 +4,60 @@ All notable changes to `plugin-auditor` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0] - 2026-07-13
+
+Trust-hardening pass. 0.2.0 raised detection quality; this release addresses who the
+auditor trusts. The semantic-injection pass was a single point of trust, the orchestrator
+took each sub-agent's mechanical report on faith, and the clean verdict promised more than
+a static audit can deliver. It also fixes four false positives from 0.2.0 that fire on
+ordinary repositories.
+
+### Added
+- **Injection-guard sub-agent (`auditor-injection-guard`).** A sixth, independent
+  prompt-injection detector that reads only the LLM-steering artifacts, on Haiku, with no
+  Bash, and returns strict JSON. It is escalate-only: its findings can raise a verdict,
+  never lower one, so an injection aimed at the guard can at worst add noise. Redundancy
+  through diversity: a payload must now evade two detectors on two different models.
+- **Mechanical cross-check (Step 5a).** The orchestrator re-runs the scan helpers itself
+  and confirms every path and host the scripts found appears in the owning sub-agent's
+  report. A silently dropped finding, the signature of a poisoned context, is an automatic
+  `FAIL`. Raw outputs are captured under `.raw/` for the comparison.
+- **`scan_unicode.sh`.** Detects zero-width characters, bidirectional overrides, other
+  invisible format/control characters, and Cyrillic/Greek homoglyphs. Inside a Claude
+  artifact these are `FAIL`; the artifact auditor's raw-bytes check now relies on it.
+- **Provenance tags.** Every finding is labelled `[mechanical]` (deterministic scan/regex)
+  or `[model-judgment]` (semantic pass or guard), and the report records the semantic-pass
+  models and guard/auditor agreement.
+- **Remote MCP trust boundary.** A server declared with a remote transport (`type: sse/http`
+  with a `url`) is `CAUTION`: its logic and tool descriptions live off-machine and can change
+  at runtime, so static analysis ends at the declaration.
+- **TOCTOU note.** The report and README state that a verdict applies to exactly the audited
+  SHA and that `/plugin update` invalidates it.
+- Expanded fixtures: a planted `evasion_unicode.md`, a high-entropy Bearer value, and a
+  remote-transport MCP server; safe-fixture near-misses (sha256/git-SHA pin, private IPs,
+  Bearer placeholder, `re.compile` + `bytes([...])`) that must stay silent.
+
+### Changed
+- **Clean verdict renamed `SAFE` → `NO FINDINGS (static)`.** A static audit reports the
+  absence of matches, not the presence of safety. Legacy state files carrying `SAFE` are
+  displayed under the new name.
+- The artifact scope (guard, artifact auditor, unicode rule) now includes any `*.md` with
+  `name`/`description` frontmatter, catching an artifact planted outside the canonical paths.
+- `auditor-network-fs` enumerates every host it saw, including allowlisted ones, so the
+  cross-check can find them.
+
+### Fixed
+- **sha256 / git-SHA pins no longer flagged as obfuscation.** A digest-width hex blob in a
+  hash context, or a git pin preceded by `@`, is skipped before the base64 pass.
+- **`re.compile` and `bytes([...])` no longer read as decode-then-execute.** The `compile(`
+  match excludes `re.`/`regex.` compilers; `bytes([...])` requires eight or more numeric
+  elements; the cross-line decode→exec pairing is bounded to a 25-line window.
+- **Private IPs no longer flagged as exfiltration destinations.** `scan_network` validates
+  octets and routes RFC1918 / link-local addresses to a `local:` key (TEST-NET documentation
+  ranges deliberately stay flagged).
+- **Bearer-token documentation placeholders no longer fire.** The bearer check moved behind
+  the entropy/placeholder gate.
+
 ## [0.2.0] - 2026-07-12
 
 Hardening pass focused on detection quality. The previous releases leaned on literal

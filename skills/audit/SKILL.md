@@ -200,7 +200,7 @@ Mandatory sections, in this order:
 5. `## Caution (N)` — same shape for `CAUTION`. Skip if N=0.
 6. `## Verified OK (N)` — bulleted list of positive checks.
 7. `## Per-agent details` — one subsection per sub-agent with its raw report.
-8. `## Audit metadata` — sub-agents used, files scanned, lines of code (best-effort), execution time, plugin version (`0.2.0`), delta mode flag.
+8. `## Audit metadata` — sub-agents used, files scanned, lines of code (best-effort), execution time, plugin version (`0.3.0`), delta mode flag.
 
 Use ASCII characters only — no emojis — to match the project conventions documented in the README.
 

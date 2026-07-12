@@ -11,8 +11,8 @@
     {
       "name": "plugin-auditor",
       "source": "./",
-      "description": "Static security audit for GitHub/GitLab repositories before installing them in Claude Code. A single user-invocable skill (/plugin-auditor:audit) orchestrates five parallel sub-agents (static, claude-artifacts, supply-chain, config, network-fs) and produces a markdown report with a NO FINDINGS / CAUTION / UNSAFE verdict.",
-      "version": "0.2.0",
+      "description": "Static security audit for GitHub/GitLab repositories before installing them in Claude Code. A single user-invocable skill (/plugin-auditor:audit) orchestrates six parallel sub-agents (static, claude-artifacts, supply-chain, config, network-fs, injection-guard) and produces a markdown report with a NO FINDINGS / CAUTION / UNSAFE verdict.",
+      "version": "0.3.0",
       "keywords": [
         "security",
         "audit",
