@@ -53,6 +53,10 @@ PATTERNS=(
   'pem_private_key|-----BEGIN ([A-Z]+ )?PRIVATE KEY-----'
   'google_api_key|AIza[0-9A-Za-z_-]{35}'
   'gcp_oauth_refresh|1//0[A-Za-z0-9_-]{30,}'
+  'sendgrid_key|SG\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}'
+  'twilio_key|SK[0-9a-fA-F]{32}'
+  'azure_storage_key|AccountKey=[A-Za-z0-9+/]{40,}={0,2}'
+  'generic_bearer|[Bb]earer[[:space:]]+[A-Za-z0-9._-]{24,}'
 )
 
 for pair in "${PATTERNS[@]}"; do
@@ -91,3 +95,62 @@ for pair in "${PATTERNS[@]}"; do
     printf '%s:%s:%s:%s\n' "${path}" "${lineno}" "${CATEGORY}" "${redacted}"
   done < <(grep -REn -I "${EXCLUDES[@]}" -e "${REGEX}" "${REPO}" 2>/dev/null || true)
 done
+
+# Generic high-entropy secret assignment: catches provider-agnostic secrets that
+# have no distinctive prefix (api_token = "<40 random chars>"). A bare regex would
+# fire on placeholders, so we gate on Shannon entropy and reject common dummies.
+python3 - "${REPO}" <<'PYEOF'
+import math
+import os
+import re
+import sys
+
+repo = sys.argv[1]
+EXCLUDE_DIRS = {".git", "node_modules", "vendor", "dist", "build", ".venv", "__pycache__"}
+EXCLUDE_FILES = {
+    "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
+    "poetry.lock", "uv.lock", "Cargo.lock", "Gemfile.lock", "composer.lock",
+}
+
+ASSIGN = re.compile(
+    r"""(?P<key>[A-Za-z0-9_.-]*(api|token|secret|passwd|password|auth|key|access|private)[A-Za-z0-9_.-]*)"""
+    r"""\s*[:=]\s*['"](?P<val>[A-Za-z0-9+/_=-]{24,})['"]""",
+    re.IGNORECASE,
+)
+# Reject obvious placeholders / non-secrets.
+DUMMY = re.compile(
+    r"^(x{6,}|\.{3,}|change[_-]?me|your[_-]|example|placeholder|dummy|test|sample|"
+    r"none|null|undefined|redacted|todo|fixme|00+|123456|abcdef)", re.IGNORECASE)
+
+def entropy(s):
+    if not s:
+        return 0.0
+    c = {}
+    for ch in s:
+        c[ch] = c.get(ch, 0) + 1
+    n = len(s)
+    return -sum((k / n) * math.log2(k / n) for k in c.values())
+
+for root, dirs, files in os.walk(repo):
+    dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
+    for fn in files:
+        if fn in EXCLUDE_FILES:
+            continue
+        path = os.path.join(root, fn)
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                for lineno, line in enumerate(f, start=1):
+                    m = ASSIGN.search(line)
+                    if not m:
+                        continue
+                    val = m.group("val")
+                    if DUMMY.match(val) or len(set(val)) < 12:
+                        continue
+                    if entropy(val) < 3.5:
+                        continue
+                    keep = val[:8]
+                    redacted = f"{m.group('key')}={keep}<REDACTED:{len(val)-8}chars>"
+                    print(f"{path}:{lineno}:generic_high_entropy_assignment:{redacted}")
+        except (OSError, UnicodeDecodeError):
+            continue
+PYEOF

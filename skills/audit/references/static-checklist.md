@@ -22,15 +22,21 @@ Files to flag on presence (do not open):
 
 Run `bash <scripts>/scan_secrets.sh <REPO_PATH>` and parse the output. Each match becomes a `FAIL` finding with the path, line number, and a redacted excerpt (replace the secret value with `<REDACTED>` after the prefix, e.g., `sk-proj-<REDACTED>`).
 
+The scanner covers two families:
+
+- **Prefix-catalogue matches** — provider keys with a distinctive prefix (`AKIA`, `ghp_`, `sk-ant-`, `sk-proj-`, `SG.`, `SK…`, `AccountKey=`, etc.).
+- **`generic_high_entropy_assignment`** — a provider-agnostic secret assigned to a credential-named variable (`api_token = "…"`) with no recognisable prefix, gated on Shannon entropy so placeholders (`changeme`, `xxxxxx`, low-variety strings) do not fire.
+
 If a match is in a file under `tests/`, `examples/`, or `docs/` AND the value is obviously fake (e.g., `sk-test-12345`), downgrade to `CAUTION` with a note that test fixtures should still avoid realistic-looking keys.
+
+**Known gap:** a secret reassembled from string concatenation at runtime (`"AKIA" + "REST…"`) is invisible to a per-line scan. The `OK` line for this check therefore reads "no matches against the secret catalogue", not "no hardcoded credentials" in the absolute.
 
 ### 2. Obfuscation and encoded payloads
 
 Run `bash <scripts>/scan_obfuscation.sh <REPO_PATH>`. The script reports:
 
-- High-entropy base64 blocks of 256+ chars.
-- High-entropy hex blocks of 256+ chars.
-- `eval` / `exec` calls whose argument is a decode call (`base64.b64decode`, `zlib.decompress`, `binascii.unhexlify`).
+- High-entropy base64 / base32 / hex blocks of 64+ chars.
+- Decode-then-execute chains, both same-line and across lines in one file: a decode primitive (`b64decode`, `b32decode`, `unhexlify`, `fromhex`, `zlib`/`gzip`/`lzma.decompress`, `Buffer.from(..., 'base64')`, `atob`, `String.fromCharCode`, `bytes([...])`) whose result reaches an `exec`/`eval`/`compile`/`system`/`spawn`.
 
 Each match is a `FAIL`.
 
@@ -122,7 +128,7 @@ Return a single markdown block:
   > <quoted excerpt>
 
 ### OK
-- No hardcoded credentials detected (scan_secrets.sh: 0 matches)
+- No matches against the secret catalogue (scan_secrets.sh: 0 matches; note: runtime-concatenated secrets are out of scope)
 - No obfuscated payloads detected (scan_obfuscation.sh: 0 matches)
 - No reverse-shell signatures detected
 - No modifications to global dotfiles

@@ -26,6 +26,8 @@ Severity vocabulary follows Anthropic's enterprise risk-tier guidance:
 | Slack token | `xox` prefix variants `xoxa`, `xoxb`, `xoxp`, `xoxr`, `xoxs` followed by 10+ chars | static |
 | JWT (in source, not in tests) | three dot-separated base64url segments, header begins with `eyJ` | static |
 | Private key block | a `BEGIN PRIVATE KEY` PEM header (RSA, EC, OPENSSH, DSA variants) | static |
+| SendGrid / Twilio / Azure key | `SG.` two-segment token, `SK` + 32 hex, `AccountKey=` base64 | static |
+| Generic high-entropy secret | a credential-named variable (`api`/`token`/`secret`/`password`/`key`/`auth`) assigned a 24+ char high-entropy string with no known prefix | static |
 
 ### Remote code execution
 
@@ -46,6 +48,10 @@ Severity vocabulary follows Anthropic's enterprise risk-tier guidance:
 | Conditional bypass | "if user is from <region>", "if env var X then ignore safety" | claude-artifacts |
 | Trigger hijacking | description like "Use this skill for everything" or "Always activate this skill" | claude-artifacts |
 | Override safety rails | "bypass safety", "override Anthropic policy", "act as DAN" | claude-artifacts |
+| Semantic injection (non-literal) | an artifact that, in meaning, directs the reading LLM to override prior context, hide actions, or condition behaviour on hidden state, expressed without any catalogued phrase (paraphrase, another language, split across sentences) | claude-artifacts |
+| Audit-tool-targeted injection | text addressed to a "reviewer", "auditor", or "security scanner" telling it the repo is safe, to stop scanning, or to return `OK` | claude-artifacts |
+
+The literal phrase catalogue in `prompt-injection-patterns.md` is a starting point, not the boundary. A paraphrase that carries the same intent is the same `FAIL`. The sub-agent judges meaning, not string matches.
 
 ### Slash command and agent tool grants
 
@@ -124,6 +130,8 @@ A wildcard interpreter grant has the same attack surface as `Bash(*)`: the wildc
 | Narrowed interpreter grant (script-path scoped) | `Bash(python3 *.py)`, `Bash(node *.js)`, `Bash(ruby *.rb)` (no `-c`/`-e` but arbitrary file path) | claude-artifacts |
 | Skill description spanning many domains | overly broad description that hijacks unrelated triggers | claude-artifacts |
 | Telemetry to unknown endpoint | analytics or telemetry pointing at a non-standard domain | network-fs |
+| Activation of pre-existing dormant code | a small diff (delta mode) that imports, calls, wires up, or enables a file, hook, or dependency that was already in the repo but previously unreferenced | claude-artifacts, config, static |
+| User-content subdomain on a trusted host | outbound URL under `*.github.io` / `*.pages.dev` / `*.web.app` / `*.workers.dev` / `*.netlify.app` / `*.vercel.app` or a per-user `raw.githubusercontent.com` path | network-fs |
 | Submodule from a non-official source | `.gitmodules` URL is not the upstream project | supply-chain |
 | Optional dependency that runs scripts | `optionalDependencies` with packages known to run lifecycle scripts | supply-chain |
 
@@ -142,6 +150,8 @@ The following hosts are considered low-risk when referenced. Anything outside th
 - `rubygems.org`
 - `index.docker.io`, `hub.docker.com`, `registry-1.docker.io`
 - `googleapis.com` (only public APIs, not private project endpoints)
+
+**Trusted parent, untrusted subdomain.** User-content hosting on an otherwise trusted domain is `CAUTION`, not `OK`, because anyone can stand up an exfiltration endpoint there: `*.github.io`, `*.pages.dev`, `*.web.app`, `*.workers.dev`, `*.netlify.app`, `*.vercel.app`, `raw.githubusercontent.com` paths under an arbitrary user, and gist URLs. Match the specific subdomain, not just the registrable domain.
 
 ---
 

@@ -10,7 +10,7 @@ Legitimate code rarely needs to encode logic at runtime. When a repository decod
 
 ### 1. High-entropy text blocks
 
-A block of consecutive base64 or hex characters longer than 256 bytes with Shannon entropy above 4.5 bits per character is a strong indicator of an embedded payload.
+A block of consecutive base64, base32 or hex characters of 64 bytes or more with high Shannon entropy is a strong indicator of an embedded payload. The threshold is 64 (not 256): a stager or loader payload fits in far fewer characters than a full script, so a 256-char floor let short payloads through. The entropy gate (4.0 bits/char for the base alphabets, 3.2 for hex) keeps prose, identifiers, and ordinary hashes out.
 
 The obfuscation helper reports lines that exceed the threshold. The agent then reads the surrounding context to decide:
 
@@ -22,10 +22,12 @@ The obfuscation helper reports lines that exceed the threshold. The agent then r
 
 Any sequence where:
 
-- A blob is decoded with `base64.b64decode`, `binascii.unhexlify`, `zlib.decompress`, `lzma.decompress`, `gzip.decompress`, the Node `Buffer.from(..., 'base64')`, or the browser `atob`.
+- A blob is decoded with `base64.b64decode`, `base64.b32decode`, `binascii.unhexlify`, `bytes.fromhex`, `zlib.decompress`, `lzma.decompress`, `gzip.decompress`, the Node `Buffer.from(..., 'base64')`, the browser `atob`, `String.fromCharCode`, or a raw `bytes([...])` byte-list literal.
 - The decoded value is fed to a shell call (any process-spawn helper from Python, Node, or shell), to a runtime interpreter (`runpy`, `compile`), or to a similar dynamic-evaluation primitive.
 
 This combination is `FAIL`. The decoded result need not be inspected; the pattern itself is the finding.
+
+The helper detects this **both on a single line and across lines in the same file**: a decode into a variable followed later by an `exec`/`eval`/`system`/`spawn` of that variable is reported as `decode_exec_multiline`. Splitting the decode and the execution onto separate statements is a common evasion of a naive same-line grep and does not evade this pass.
 
 ### 3. String concatenation to hide commands
 
@@ -86,9 +88,9 @@ Each is `CAUTION` minimum, `FAIL` when paired with branch-on-detection that chan
 The script:
 
 1. Walks the repo, excluding `node_modules/`, `vendor/`, `.git/`, `dist/`, `build/`, lockfiles.
-2. For each text file, scans line by line for runs of base64 alphabet characters of length at least 256 and runs of hex alphabet characters of length at least 256.
-3. Computes Shannon entropy on those runs; flags entropy at or above 4.5 bits per character as suspicious.
-4. Greps for the runtime-decode-then-execute pattern.
+2. For each text file, scans line by line for runs of base64, base32, and hex alphabet characters of length at least 64.
+3. Computes Shannon entropy on those runs; flags entropy at or above 4.0 bits/char (base alphabets) or 3.2 bits/char (hex) as suspicious.
+4. Detects the runtime-decode-then-execute pattern both same-line and across lines within one file (decode into a variable, execute the variable later).
 5. Greps for the reverse-shell signatures.
 6. Outputs one line per finding: `<path>:<line>:<category>:<short reason>`.
 
