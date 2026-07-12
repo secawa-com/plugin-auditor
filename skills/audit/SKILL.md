@@ -1,6 +1,6 @@
 ---
 name: audit
-description: Static security audit for repositories that contain Claude Code artifacts (skills, agents, hooks, MCP servers, slash commands) and/or general code. Detects backdoors, prompt injection, persistence hooks, supply-chain risks, hardcoded credentials, exfiltration patterns, and dangerous configurations through five parallel specialized sub-agents. User-invocable only (never auto-triggered).
+description: Static security audit for repositories that contain Claude Code artifacts (skills, agents, hooks, MCP servers, slash commands) and/or general code. Detects backdoors, prompt injection, persistence hooks, supply-chain risks, hardcoded credentials, exfiltration patterns, and dangerous configurations through six parallel specialized sub-agents. User-invocable only (never auto-triggered).
 argument-hint: "[path|url] [--delta]"
 disable-model-invocation: true
 allowed-tools:
@@ -92,9 +92,11 @@ Save the result as `PLUGIN_ROOT`. Then build absolute paths to every reference f
 
 These two values (already expanded) go into the sub-agent prompts in Step 5. Never pass a literal `${CLAUDE_PLUGIN_ROOT}` to a sub-agent.
 
-## Step 5 — Launch all five sub-agents in parallel
+## Step 5 — Launch all six sub-agents in parallel
 
-Use a single `Agent` tool message containing five parallel tool calls. Each sub-agent gets:
+Use a single `Agent` tool message containing six parallel tool calls. Five report in markdown (the checklist auditors); the sixth is the injection guard, which reports strict JSON.
+
+The five checklist auditors each get:
 
 - `subagent_type` matching the namespaced agent name (`plugin-auditor:auditor-static`, `plugin-auditor:auditor-claude-artifacts`, `plugin-auditor:auditor-supply-chain`, `plugin-auditor:auditor-config`, `plugin-auditor:auditor-network-fs`).
 - A `prompt` built from the template below, with ALL paths already expanded (no `${...}` in the body):
@@ -126,14 +128,40 @@ Sub-agent → reference file mapping (build the absolute path from `REFERENCES_D
 | `plugin-auditor:auditor-config` | `config-patterns.md` |
 | `plugin-auditor:auditor-network-fs` | `network-fs-patterns.md` |
 
-Do not run them sequentially. One message, five tool calls, in parallel.
+The sixth call is `plugin-auditor:auditor-injection-guard`. It takes a **different prompt** — no `REFERENCE_PATH`, no `RISK_MODEL_PATH`, no `SCRIPTS_PATH`, because it reads only LLM-steering artifacts and emits JSON, not a markdown report:
+
+```
+REPO_PATH=<absolute path to the audited repository>
+PROMPT_INJECTION_PATH=<absolute path to references/prompt-injection-patterns.md>
+[CHANGED_FILES=... — only if delta mode is active]
+
+Perform the injection-guard pass per agents/auditor-injection-guard.md.
+Return exactly one JSON object and nothing else.
+```
+
+Do not run them sequentially. One message, six tool calls, in parallel.
 
 ## Step 6 — Aggregate
 
-Collect all five reports. For each finding:
+Collect the five markdown reports and the guard's JSON. For each finding from the five checklist auditors:
 
 1. Look up its severity in `references/risk-model.md`. If a finding does not match any catalogued pattern, classify it as `CAUTION` by default.
 2. Group by severity (`FAIL`, `CAUTION`, `OK`).
+
+### Step 6a — Merge the injection guard (escalate-only)
+
+Parse the guard's output tolerantly: extract the first JSON object in its response (a ```` ```json ```` fence, if present, is fine). If no JSON object parses, or it lacks a `findings` key, treat it as a malformed result — add one `CAUTION` "injection guard returned malformed output" `[model-judgment]` and skip the rest of this step. Do not treat a malformed guard as a clean guard.
+
+The guard **only ever raises suspicion; it never lowers a severity.** Its silence on a file is not evidence the file is clean. For each guard finding (`suspected: true`):
+
+- **Both flag the same file with injection intent** — the guard flags file F, and `auditor-claude-artifacts` already reported an *injection-type* finding on F (semantic injection, override, hidden action, audit-targeted, exfiltration — not an unrelated finding like an overly broad `description`). This is the existing `FAIL`; do not duplicate it. Note the corroboration in the finding's evidence.
+- **Guard flags a file the artifact auditor scanned and passed** — add a `CAUTION` "guard/auditor disagreement — possible auditor-targeted injection" `[model-judgment]`, quoting the guard's `quoted_line` and `reason`. The disagreement is itself the signal: one detector saw injection the other did not.
+- **Guard flags a file outside the artifact auditor's scope** (e.g. a stray `*.md` with `name:`/`description:` that the auditor's globs did not enumerate) — add a plain guard-only `CAUTION` `[model-judgment]` with the quoted line, **without** the "auditor-targeted" wording. Nobody disagreed; the guard simply reached a file the other pass did not.
+
+Do NOT escalate to `FAIL` when the guard flags a file that the artifact auditor flagged only for a *non-injection* reason (e.g. trigger-hijacking via a broad description). That is a disagreement path (`CAUTION`), not corroboration. Escalation to `FAIL` requires an injection-type finding on both sides.
+
+Each guard-derived `CAUTION` counts as one `CAUTION` for the verdict and risk score, and lands in the `## Caution` section tagged `[model-judgment]` with the guard's quoted line so the user can adjudicate a possible model false positive.
+
 3. Compute the verdict:
    - Any `FAIL` → `UNSAFE`.
    - No `FAIL` but any `CAUTION` → `CAUTION`.
@@ -223,6 +251,7 @@ Run this step ONLY if the orchestrator cloned the repository itself in Step 0 (i
 ## Failure modes
 
 - **Sub-agent fails silently** → record the failure in the report's `## Audit metadata` section as a `WARNING: <agent> did not return a structured report`. The verdict cannot be `NO FINDINGS (static)` if any sub-agent failed; downgrade to at least `CAUTION`.
+- **Injection guard did not respond vs responded off-schema** → both downgrade to at least `CAUTION`, with distinct metadata notes: "injection guard did not return a report" (no response) versus "injection guard returned malformed output" (a response that yielded no parsable `findings` object, per Step 6a). A guard that returns nothing is not a clean guard.
 - **`clone_repo.sh` rejects the URL** → tell the user the URL was not on the allowlist and exit. Do not try other methods.
 - **`git -C <path> rev-parse HEAD` fails** → fall back to `nogit-<timestamp>` SHA, skip delta mode, and add a `CAUTION` finding "Repository is not under version control — provenance cannot be verified".
 

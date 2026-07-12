@@ -189,3 +189,21 @@ A few combinations escalate beyond the per-pattern severity:
 3. **Obfuscated payload + shell execution** → `FAIL` regardless of obfuscation severity.
 4. **Two or more `CAUTION` findings of supply-chain type on the same dependency** → escalate that dependency to `FAIL` (compounded supply-chain risk).
 5. **Sub-agent failed to return a structured report** → automatic minimum verdict of `CAUTION` (no clean signal).
+6. **Injection guard and `auditor-claude-artifacts` both flag the same file with injection intent** → the existing `FAIL` stands, now corroborated. Escalation to `FAIL` requires an injection-type finding on *both* sides; a guard flag paired with a non-injection artifact finding (e.g. broad-description trigger-hijack) is a disagreement, not corroboration.
+7. **Injection guard flags a file the artifact auditor scanned and passed** → `CAUTION` "guard/auditor disagreement — possible auditor-targeted injection". The guard never lowers a severity; it only adds this suspicion.
+8. **Injection guard returned no report, or off-schema output** → automatic minimum verdict of `CAUTION`. A silent or malformed guard is not a clean guard.
+
+## Artifact file set (single source of truth)
+
+Several passes need the same definition of "an artifact that steers an LLM". The injection guard scans exactly this set, the unicode FAIL rule applies inside it, and `auditor-claude-artifacts` enumerates it:
+
+- `**/SKILL.md`
+- `**/agents/*.md`, `**/agents/**/*.md`
+- `**/commands/*.md`, `**/commands/**/*.md`
+- `**/CLAUDE.md`
+- `**/hooks/**`
+- `**/.mcp.json`, `**/mcp.json`
+- `**/.claude-plugin/plugin.json` (the `description` field)
+- **any `*.md` whose YAML frontmatter contains both `name:` and `description:`** — an artifact planted outside the canonical paths is still an artifact.
+
+Anything not in this set is code or data, handled by the mechanical helpers, not by the artifact/guard passes.

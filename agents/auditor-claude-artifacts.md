@@ -34,6 +34,7 @@ Use `Glob` to enumerate:
 - `**/.mcp.json`, `**/mcp.json`
 - `**/settings.json`, `**/settings.local.json`
 - `**/CLAUDE.md`
+- **Any `*.md` whose YAML frontmatter contains both `name:` and `description:`** — a skill/agent-shaped artifact planted outside the canonical paths (e.g. under `src/`) still steers an LLM and is in scope.
 
 Skip `.git/`, `node_modules/`, `vendor/`, `dist/`, `build/`.
 

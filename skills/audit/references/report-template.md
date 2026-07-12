@@ -24,13 +24,15 @@ for that verdict. End with a clear recommendation: "Install with normal caution.
 
 ## Red Flags (<count>)
 
-### 1. <Short title>
+Each finding carries a provenance tag: `[mechanical]` for a deterministic detector (scan helper, regex, entropy) or `[model-judgment]` for a model-driven pass (the semantic-intent pass or the injection guard). The tag lets the reader weight the evidence: a mechanical finding is reproducible; a model-judgment finding is strong but not a guarantee.
+
+### 1. <Short title> `[mechanical|model-judgment]`
 - **Where:** `<path>:<line>`
 - **Evidence:** `> <single quoted line from the file>`
 - **Risk:** <one or two sentences explaining why this is dangerous>
 - **Recommendation:** <what the user should do — reject, request a fix, mitigate locally>
 
-### 2. <Short title>
+### 2. <Short title> `[mechanical|model-judgment]`
 - **Where:** ...
 - ...
 
@@ -38,7 +40,7 @@ for that verdict. End with a clear recommendation: "Install with normal caution.
 
 ## Caution (<count>)
 
-### 1. <Short title>
+### 1. <Short title> `[mechanical|model-judgment]`
 - **Where:** `<path>:<line>`
 - **Evidence:** `> <quoted line>`
 - **Risk:** <why it's worth attention even though it's not an automatic fail>
@@ -74,6 +76,10 @@ for that verdict. End with a clear recommendation: "Install with normal caution.
 
 <verbatim report>
 
+### auditor-injection-guard
+
+<the guard's JSON findings, rendered as a short list; or "no suspected injection" when empty>
+
 ## Audit metadata
 
 - **plugin-auditor version:** 0.2.0
@@ -81,7 +87,9 @@ for that verdict. End with a clear recommendation: "Install with normal caution.
 - **Repository origin:** `<git remote URL or "local checkout">`
 - **HEAD SHA:** `<full SHA>`
 - **Delta mode:** `<true|false>` (if true, include the previous SHA and the count of changed files)
-- **Sub-agents:** auditor-static, auditor-claude-artifacts, auditor-supply-chain, auditor-config, auditor-network-fs
+- **Sub-agents:** auditor-static, auditor-claude-artifacts, auditor-supply-chain, auditor-config, auditor-network-fs, auditor-injection-guard
+- **Semantic-pass models:** auditor-claude-artifacts (opus), auditor-injection-guard (haiku)
+- **Guard/auditor agreement:** `<in agreement | disagreement on N file(s)>`
 - **Files scanned:** <count>
 - **Lines of code (approx):** <count>
 - **Audit started:** <ISO timestamp>

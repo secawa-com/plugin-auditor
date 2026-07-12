@@ -12,14 +12,14 @@ Static security audit for projects extending Claude (skills, agents, hooks, plug
 
 The Claude Code ecosystem is growing fast: skills, agents, hooks, plugins, MCP servers, and slash commands are shipped in public repositories that anyone can clone and install with a single command. This is also a textbook supply-chain attack surface — a malicious skill can instruct Claude to leak credentials, a hook can persist across sessions, an MCP server can fetch arbitrary code at runtime, and a `postinstall` script can run before you ever inspect the code.
 
-`plugin-auditor` runs a fully static security audit of a repository before you trust it. The plugin exposes a single user-invocable skill (`/plugin-auditor:audit`) that orchestrates five specialized sub-agents in parallel — each scanning a different risk dimension (static code, Claude artifacts, supply chain, configuration, network and filesystem patterns) — and produces a single markdown report with a clear verdict (`NO FINDINGS (static)`, `CAUTION`, or `UNSAFE`), every finding backed by a file path and line number.
+`plugin-auditor` runs a fully static security audit of a repository before you trust it. The plugin exposes a single user-invocable skill (`/plugin-auditor:audit`) that orchestrates six specialized sub-agents in parallel — five scanning a different risk dimension each (static code, Claude artifacts, supply chain, configuration, network and filesystem patterns) and a sixth injection guard cross-checking the LLM-steering artifacts on a separate model — and produces a single markdown report with a clear verdict (`NO FINDINGS (static)`, `CAUTION`, or `UNSAFE`), every finding backed by a file path and line number.
 
 The plugin never executes audited code. It only reads, greps, and reasons.
 
 ### Architecture at a glance
 
 - **One entry point** — the `audit` skill (invoked as `/plugin-auditor:audit`). Marked `disable-model-invocation: true`, so Claude never auto-runs an audit on its own; the user has to ask for it explicitly.
-- **Five sub-agents** in `agents/` — each owns one risk dimension and reports back in a structured `FAIL / CAUTION / OK` block. They are not exposed as user-invocable commands; the orchestrator calls them via the `Agent` tool with their namespaced ids (`plugin-auditor:auditor-static`, etc.).
+- **Six sub-agents** in `agents/` — five own a risk dimension each and report a structured `FAIL / CAUTION / OK` block; the sixth is an injection guard that reports strict JSON. They are not exposed as user-invocable commands; the orchestrator calls them via the `Agent` tool with their namespaced ids (`plugin-auditor:auditor-static`, etc.).
 - **Read-only helpers** in `skills/audit/scripts/` and reference catalogues in `skills/audit/references/`. None of them fetch, install, or build anything from the audited repository.
 
 ---
@@ -137,13 +137,13 @@ The plugin ships exactly one user-invocable skill. It is `disable-model-invocati
 
 | Skill   | Namespaced invocation               | Description                                                                                                                                                                  | Argument hint           |
 | ------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `audit` | `/plugin-auditor:audit`             | Orchestrates a static security audit of a local or remote repository, aggregates findings from five parallel sub-agents, and writes a markdown report under `~/.claude/plugin-auditor-reports/`. | `[path\|url] [--delta]` |
+| `audit` | `/plugin-auditor:audit`             | Orchestrates a static security audit of a local or remote repository, aggregates findings from six parallel sub-agents, and writes a markdown report under `~/.claude/plugin-auditor-reports/`. | `[path\|url] [--delta]` |
 
 ---
 
 ## Sub-agents
 
-Each sub-agent is a self-contained markdown definition under `agents/`. The orchestrating skill launches all five in a single parallel batch via the `Agent` tool, addressing each by its namespaced identifier (e.g. `plugin-auditor:auditor-static`). Sub-agents are intentionally not designed for direct user invocation — they assume the orchestrator's framing (REPO_PATH, reference paths, delta context).
+Each sub-agent is a self-contained markdown definition under `agents/`. The orchestrating skill launches all six in a single parallel batch via the `Agent` tool, addressing each by its namespaced identifier (e.g. `plugin-auditor:auditor-static`). Sub-agents are intentionally not designed for direct user invocation — they assume the orchestrator's framing (REPO_PATH, reference paths, delta context).
 
 | Sub-agent (namespaced)                       | Focus area                                                                                                                                                                                         |
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -152,6 +152,7 @@ Each sub-agent is a self-contained markdown definition under `agents/`. The orch
 | `plugin-auditor:auditor-supply-chain`        | `package.json` lifecycle scripts, `requirements.txt` and `pyproject.toml` typosquatting, lockfile integrity, git submodules pointing to forks, runtime `npx` fetches, unverified git dependencies. |
 | `plugin-auditor:auditor-config`              | `settings.json` permission overrides, committed `.env` files, CI/CD workflow abuse (`pull_request_target`, secrets dump, self-hosted runners), Dockerfile risks, sandbox-evasion patterns.         |
 | `plugin-auditor:auditor-network-fs`          | URL allowlist enforcement, file-system scope, path traversal, sensitive-path access (`~/.ssh`, `~/.aws`, `~/.config/gh`), data exfiltration chains, long-running background processes.             |
+| `plugin-auditor:auditor-injection-guard`     | Second, independent prompt-injection pass over the LLM-steering artifacts only (SKILL.md, agents, commands, CLAUDE.md, hooks, `.mcp.json`, plugin.json, and any `*.md` with `name`/`description` frontmatter). Runs on Haiku with no Bash, returns strict JSON, and is escalate-only: its findings can raise severity, never lower it.                |
 
 
 ---
@@ -159,7 +160,7 @@ Each sub-agent is a self-contained markdown definition under `agents/`. The orch
 ## How it works
 
 1. **Input resolution.** The skill resolves the input to a local repository path, either by using the current working directory, an explicit path, or by shallow-cloning a remote URL into `${PWD}/.plugin-auditor-tmp/`.
-2. **Parallel sub-agents.** All five sub-agents are launched in a single message. Each reads the relevant reference file from `references/`, calls the appropriate helper script from `scripts/`, and returns a structured partial report.
+2. **Parallel sub-agents.** All six sub-agents are launched in a single message. The five checklist auditors each read the relevant reference file from `references/`, call the appropriate helper script from `scripts/`, and return a structured partial report; the injection guard reads only the LLM-steering artifacts and returns strict JSON.
 3. **Risk-model aggregation.** Findings are mapped through `references/risk-model.md` which classifies every pattern as `OK`, `CAUTION`, or `FAIL`. The verdict follows the worst level found.
 4. **Report and state.** A timestamped markdown report is written to `~/.claude/plugin-auditor-reports/`, and a state file records the audited SHA so future audits can run in delta mode.
 
@@ -227,6 +228,8 @@ Past reports are never overwritten. The state directory is consulted only by `--
 - **Test fixtures included.** The repository ships paired `safe-fixture/` and `malicious-fixture/` projects under `tests/fixtures/` so each sub-agent's domain has a known-good and known-bad reference to scan against.
 - **Regression harness.** `bash tests/run.sh` runs every mechanical scan helper against both fixtures and asserts the safe fixture stays clean while each planted category is still detected (contract in `tests/expectations.md`). It is read-only and never executes fixture code. If a detector regresses and goes silent, the suite fails.
 - **Semantic-intent pass, not just grep.** Prompt-injection detection judges the *meaning* of an artifact first (paraphrase, another language, and reviewer-targeted "this repo is safe" text are all caught), then the literal phrase catalogue runs as a backstop.
+- **Two independent injection detectors.** The semantic-intent pass and a separate Haiku injection guard read the LLM-steering artifacts independently, on different models with different context. An injection tuned to slip past one must also slip past the other. The guard is escalate-only: it can raise a verdict, never lower one, so a payload aimed at the guard itself can at worst add noise, never wave a repo through.
+- **Provenance-tagged findings.** Every finding is tagged `[mechanical]` (a deterministic scan or regex) or `[model-judgment]` (a model-driven pass), so the reader can weight reproducible evidence against model inference.
 
 ---
 
@@ -240,7 +243,8 @@ Plugin-auditor itself runs inside Claude Code with elevated trust — it reads y
 - `Bash` — only for two narrow uses:
   - the orchestrating skill runs `bash ${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/*` (helper scripts shipped with the plugin) and `git -C * rev-parse HEAD` (no other git verbs are pre-approved);
   - sub-agents `auditor-static`, `auditor-supply-chain`, `auditor-network-fs` keep `Bash` in their allowlist for grep/find/awk/python invocations against the audited repository, plus the helper scripts above.
-- `Agent` — the orchestrator only. Used to fan out to the five sub-agents in parallel. Sub-agents themselves cannot spawn further sub-agents (a Claude Code platform limit, not just policy).
+  - `auditor-claude-artifacts` and `auditor-injection-guard` deliberately have **no** `Bash` at all — the two passes that read the most adversarial input (LLM-steering artifacts) get `Read`/`Grep`/`Glob` only, so a compromised prompt cannot reach a shell.
+- `Agent` — the orchestrator only. Used to fan out to the six sub-agents in parallel. Sub-agents themselves cannot spawn further sub-agents (a Claude Code platform limit, not just policy).
 - `Write` — the orchestrator only, restricted to `${HOME}/.claude/plugin-auditor-reports/**`. Reports and the delta-mode state file land there; no other path is pre-approved.
 - `AskUserQuestion` — the orchestrator only. Used for the post-report drill-down prompt.
 
@@ -327,7 +331,7 @@ plugin-auditor/
 │       ├── SKILL.md                             # orchestrating skill (disable-model-invocation: true)
 │       ├── references/                          # risk model and checklists
 │       └── scripts/                             # bash helpers (read-only scans)
-├── agents/                                      # five parallel sub-agents (called by the orchestrator)
+├── agents/                                      # six parallel sub-agents (called by the orchestrator)
 │   ├── auditor-static.md
 │   ├── auditor-claude-artifacts.md
 │   ├── auditor-supply-chain.md
