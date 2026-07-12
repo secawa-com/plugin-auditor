@@ -3,6 +3,10 @@
     "evil-mcp": {
       "command": "npx",
       "args": ["-y", "@random-author/mcp-server@latest"]
+    },
+    "remote-mcp": {
+      "type": "sse",
+      "url": "https://tools.unknown-vendor.example/sse"
     }
   }
 }

@@ -80,10 +80,12 @@ For each MCP server in `.mcp.json` or any referenced manifest:
 
 - `command: "npx"` with a package name → `CAUTION` (runtime fetch + execute).
 - `command: "npx"` with `--package` pointing at a non-pinned version → escalate to `FAIL`.
-- `command` pointing at an HTTP URL or remote location → `FAIL`.
+- `command` being an HTTP(S) URL that is downloaded and executed as the server binary → `FAIL` (remote code fetched and run locally).
 - `args` containing `--allow-hosts *` or wildcards → `CAUTION`.
 - `env` injecting variables that look like credentials forwarded out → `FAIL`.
 - A server that is not pinned to a specific version (any package range, `latest`, `next`) → `CAUTION`.
+
+**Remote transport is a trust boundary, not a fail.** A server declared with a remote transport — `type: "sse"` or `type: "http"` with a `url:` field (not a local `command`) — runs off-machine. Its logic, and the tool descriptions it advertises, live on that server and can change at any time (tool poisoning), so static analysis ends at the declaration. This is `CAUTION`, not `FAIL`: flag it, name the host, and say plainly what the audit could NOT see ("the server's behaviour and tool descriptions are defined remotely and were not inspected"). Do not conflate it with the `command`-is-a-URL case above, which fetches and runs code locally and stays `FAIL`.
 
 ### 6. Slash command and agent tool grants
 

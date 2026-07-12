@@ -116,6 +116,7 @@ A wildcard interpreter grant has the same attack surface as `Bash(*)`: the wildc
 | `postinstall` script in `package.json` | runs arbitrary code on `npm install` | supply-chain |
 | `preinstall` script in `package.json` | runs even earlier than postinstall | supply-chain |
 | MCP server using `npx` at runtime | `command: "npx"` with a package fetched on each launch | supply-chain |
+| Remote MCP transport (trust boundary) | `.mcp.json` server with `type: "sse"` / `type: "http"` and a `url:` (not a local `command`); its logic and tool descriptions live on the remote server and can change at runtime (tool poisoning), so static analysis ends at the declaration | claude-artifacts |
 | Git dependency to a non-official fork | `git+https://github.com/<random-user>/<package>` instead of upstream | supply-chain |
 | Typosquatting heuristic match | dependency name is one Levenshtein edit from a popular package | supply-chain |
 | Missing or unfrozen lockfile | `package.json` without `package-lock.json`, or `pyproject.toml` without `poetry.lock`/`uv.lock` | supply-chain |
