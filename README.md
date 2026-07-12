@@ -4,7 +4,7 @@ Static security audit for projects extending Claude (skills, agents, hooks, plug
 
 **Author**: Piotr Kaźmierczak - CEO [Secawa](https://secawa.com) \
 **License**: MIT \
-**Version**: 0.1.5
+**Version**: 0.2.0
 
 ---
 
@@ -36,7 +36,7 @@ The plugin never executes audited code. It only reads, greps, and reasons.
    ```bash
    /plugin
    ```
-   `plugin-auditor` should appear with version `0.1.5`. Type `/` and start typing `plug` — the entry `/plugin-auditor:audit` should be listed in the slash menu.
+   `plugin-auditor` should appear with version `0.2.0`. Type `/` and start typing `plug`, and the entry `/plugin-auditor:audit` should be listed in the slash menu.
 4. The first audit will create `~/.claude/plugin-auditor-reports/` automatically. No other system files are touched.
 
 ---
@@ -223,6 +223,8 @@ Past reports are never overwritten. The state directory is consulted only by `--
 - **Conservative defaults.** When in doubt, the risk model classifies a pattern as `CAUTION`, never as `OK`. Silence is not safety.
 - **No code execution.** The plugin never runs anything from the audited repository. Static analysis only — by design, not by accident.
 - **Test fixtures included.** The repository ships paired `safe-fixture/` and `malicious-fixture/` projects under `tests/fixtures/` so each sub-agent's domain has a known-good and known-bad reference to scan against.
+- **Regression harness.** `bash tests/run.sh` runs every mechanical scan helper against both fixtures and asserts the safe fixture stays clean while each planted category is still detected (contract in `tests/expectations.md`). It is read-only and never executes fixture code. If a detector regresses and goes silent, the suite fails.
+- **Semantic-intent pass, not just grep.** Prompt-injection detection judges the *meaning* of an artifact first (paraphrase, another language, and reviewer-targeted "this repo is safe" text are all caught), then the literal phrase catalogue runs as a backstop.
 
 ---
 
@@ -258,6 +260,31 @@ A reminder on Claude Code semantics: in subagent frontmatter `tools`/`disallowed
 - No auto-fix. The plugin reports findings but never modifies the audited repository.
 - False positives are possible — particularly on legitimate network calls to well-known domains. Always read the evidence before acting.
 - Binaries are flagged on presence; the plugin does not reverse-engineer them.
+
+---
+
+## Known evasion gaps
+
+The mechanical scanners are grep- and entropy-based, so a determined attacker who has read
+these (public) pattern catalogues can still step around parts of them. The plugin is honest
+about where the floor is:
+
+- **Semantic prompt injection.** A payload that carries injection intent without any catalogued
+  phrase (paraphrase, another language, split across sentences) is invisible to the literal
+  grep. The `auditor-claude-artifacts` semantic-intent pass is the defence here, and it is
+  model-driven, not deterministic, so it is strong but not a guarantee.
+- **Runtime-assembled secrets and payloads.** A secret or command reassembled from string
+  concatenation at runtime (`"AKIA" + "REST…"`) is not visible to a per-line scan. `SAFE` on
+  the secret check means "no matches against the catalogue", not "no credentials".
+- **Sub-256-bit but sub-threshold encodings.** The obfuscation floor is 64 chars with an
+  entropy gate; a payload shaped to sit under both, or encoded with a scheme not in the
+  decoder catalogue, can still slip through.
+- **Delta mode.** Auditing only a diff cannot see dormant code introduced in earlier commits
+  that a small change later activates. The dormant-code guard scans what a diff newly
+  *reaches*, but code that is neither changed nor newly referenced is not re-scanned.
+
+The malicious fixture deliberately includes examples of the first two gaps (`evasion_*` files)
+so they are visible and testable rather than pretended-away. See `tests/expectations.md`.
 
 ---
 

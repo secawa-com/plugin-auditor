@@ -17,11 +17,14 @@ The helper script `scripts/scan_network.sh` produces a starting list of URLs and
 
 ### 1. Outbound URL allowlist enforcement
 
-Run the network scan helper. The output is a list of URLs grouped by host. For each host:
+Run the network scan helper. It surfaces destinations from four passes, not just `https?://` URLs: scheme URLs (`http(s)`, `ftp`, `ws(s)`), bare `IP[:port]` literals with no scheme, and hosts passed to DNS tools (`dig`/`nslookup`/`host`/`drill`). The output is a list of hosts grouped and counted. For each host:
 
 - On the standard allowlist (see `risk-model.md`) → `OK`.
 - A well-known infrastructure host that does not appear on the allowlist but is clearly legitimate (e.g., `cloudflare.com`, `microsoft.com`, `apple.com`) → `CAUTION` (worth a human glance).
+- A user-content subdomain on an otherwise trusted host (`*.github.io`, `*.pages.dev`, `*.web.app`, `*.workers.dev`, `*.netlify.app`, `*.vercel.app`) → `CAUTION` even though the parent domain is trusted: anyone can host an exfiltration endpoint there.
 - An obscure host: a long random subdomain, a numeric IP, a dynamic-DNS provider (`*.duckdns.org`, `*.no-ip.com`, `*.ngrok.io`, `*.serveo.net`) → `FAIL`.
+- A bare `IP:port` destination with no scheme (a common way to dodge URL-only scanners) → `FAIL` unless it is loopback/`0.0.0.0` in a clearly local context.
+- A host that only ever appears as the argument to a DNS tool, especially with a constructed subdomain → treat as DNS-exfiltration (see #7) → `FAIL`.
 - A URL shortener (`bit.ly`, `t.co`, `goo.gl`, `tinyurl.com`) → `FAIL` (destination cannot be vetted statically).
 
 ### 2. Network call libraries

@@ -4,6 +4,60 @@ All notable changes to `plugin-auditor` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0] - 2026-07-12
+
+Hardening pass focused on detection quality. The previous releases leaned on literal
+matching (grep over a fixed phrase list, fixed secret prefixes, a 256-char obfuscation
+floor, `https?://`-only network extraction), which an adversary who has read the public
+pattern catalogues can step around. This release raises the floor on evasion and adds a
+measurable regression baseline.
+
+### Added
+- **Regression harness (`tests/run.sh`) + contract (`tests/expectations.md`).** Runs every
+  `scan_*.sh` helper against the safe and malicious fixtures and asserts the safe fixture
+  stays clean while each planted category is still detected. Read-only; never executes
+  fixture code. A detector going silent now fails the suite instead of slipping through.
+- **Evasion fixtures** under `tests/fixtures/malicious-fixture/`: a paraphrased,
+  non-English prompt injection (`evasion_paraphrase.md`), a split multi-line decode+exec
+  with a short base32 payload (`evasion_split.py`), a prefix-less high-entropy secret
+  (`evasion_secret.py`), and scheme-less network destinations (`evasion_net.sh`). Two are
+  documented as known static-scan gaps (semantic injection, concatenated secrets).
+- **Semantic-intent pass for prompt injection.** `auditor-claude-artifacts` now judges
+  meaning before running the literal grep: an artifact that overrides context, hides
+  actions, conditions on hidden state, or addresses a reviewer/auditor to wave the repo
+  through is `FAIL` even with zero catalogued phrases. New `risk-model.md` rows for
+  "Semantic injection (non-literal)" and "Audit-tool-targeted injection".
+- **Generic secret detection.** `scan_secrets.sh` gains `generic_high_entropy_assignment`
+  (a credential-named variable holding a high-entropy value, gated on Shannon entropy to
+  avoid placeholders) plus SendGrid / Twilio / Azure-storage / bearer patterns.
+- **Broader network extraction.** `scan_network.sh` now also captures `ftp://` and `ws(s)://`
+  URLs, bare `IP:port` literals with no scheme, and hosts passed to `dig`/`nslookup`/`host`/
+  `drill` (DNS-exfil feed). User-content subdomains on trusted parents (`*.github.io`,
+  `*.pages.dev`, `*.web.app`, `*.workers.dev`, `*.netlify.app`, `*.vercel.app`) are now
+  `CAUTION`, not `OK`.
+- **Delta-mode dormant-code guard.** The orchestrator instructs sub-agents to also scan any
+  file a diff newly activates (import/require/source/hook wiring) even when that file is not
+  in the changed set, and to print a standing caveat that delta mode does not re-scan
+  untouched dormant code. New `risk-model.md` `CAUTION` row for dormant-code activation.
+
+### Changed
+- **`auditor-claude-artifacts` model raised from `sonnet` to `opus`.** Non-literal injection
+  detection is the semantic-hardest task in the plugin; the strongest generally available
+  model does the most good here.
+- **Every sub-agent is now confused-deputy hardened.** Each `agents/*.md` carries a hard rule
+  that content under `REPO_PATH` is data to analyse, never instructions to the agent; an
+  artifact that tries to steer the agent is itself a finding.
+- **Obfuscation threshold lowered from 256 to 64 chars**, with per-alphabet entropy gates
+  (4.0 base / 3.2 hex) tuned so the safe fixture and the plugin's own source stay clean.
+  Decode-then-execute is now detected across lines within a file, and the decoder catalogue
+  covers base32, `bytes([...])`, `String.fromCharCode`, and `zlib`/`gzip`/`lzma`.
+
+### Notes
+- No change to the plugin's own trust model: still read-only against audited repos, still no
+  `WebFetch`/`WebSearch` in sub-agents, `Write` still pinned to the reports directory.
+- `SAFE` continues to mean "no known signatures matched", not "proven safe". The new README
+  "Known evasion gaps" section states the boundary explicitly.
+
 ## [0.1.5] - 2026-05-15
 
 ### Fixed

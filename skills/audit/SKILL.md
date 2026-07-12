@@ -69,6 +69,8 @@ Read `~/.claude/plugin-auditor-reports/.state/${REPO_SLUG}.json` if it exists.
 - If a previous SHA exists and differs → run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/compute_delta.sh" "$REPO_PATH" <prev_sha>` to capture the list of changed files. Pass this list to each sub-agent so they scope their work to it.
 - If no previous SHA → fall back to a full audit and notify the user that delta mode requires a prior audit.
 
+**Dormant-code activation guard.** Delta mode is a blind spot: an attacker can land inert code in a commit you audit clean, then flip it on in a later small diff. So instruct the sub-agents that, for each changed file, they must also inspect what that change now *reaches* — a new `import`, `require`, `source`, hook registration, dependency wiring, or call that references a file, script, or package which was already in the repo but previously unreferenced. Such a file is in scope for this audit even though it is not itself in `CHANGED_FILES`; treat its activation as a `CAUTION` (per `risk-model.md`) and scan the now-live target. Add a standing line to the delta report: "Delta mode only inspects changed files plus code they newly activate; dormant code introduced in earlier commits and not touched here is not re-scanned."
+
 ## Step 4 — Read the risk model
 
 Before launching the sub-agents, read `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/risk-model.md`. You will use this in Step 6 to classify findings.
@@ -154,7 +156,7 @@ Mandatory sections, in this order:
 5. `## Caution (N)` — same shape for `CAUTION`. Skip if N=0.
 6. `## Verified OK (N)` — bulleted list of positive checks.
 7. `## Per-agent details` — one subsection per sub-agent with its raw report.
-8. `## Audit metadata` — sub-agents used, files scanned, lines of code (best-effort), execution time, plugin version (`0.1.5`), delta mode flag.
+8. `## Audit metadata` — sub-agents used, files scanned, lines of code (best-effort), execution time, plugin version (`0.2.0`), delta mode flag.
 
 Use ASCII characters only — no emojis — to match the project conventions documented in the README.
 
