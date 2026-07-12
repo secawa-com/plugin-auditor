@@ -2,7 +2,7 @@
 
 Minimal known-good fixture for `plugin-auditor` regression tests.
 
-The plugin should produce a `SAFE` verdict on this directory:
+The plugin should produce a `NO FINDINGS (static)` verdict on this directory:
 
 - One inert skill, no hooks, no MCP servers.
 - No dependency manifests, no CI/CD workflows, no Dockerfile.

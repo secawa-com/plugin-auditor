@@ -65,7 +65,7 @@ If the path is not a git repository, still proceed with the audit but set `HEAD_
 
 Read `~/.claude/plugin-auditor-reports/.state/${REPO_SLUG}.json` if it exists.
 
-- If a previous SHA exists and equals the current `HEAD_SHA` → ask the user via `AskUserQuestion`: "no changes since last audit on `<date>`, verdict was `<verdict>`. Re-running anyway?". If they decline, exit cleanly.
+- If a previous SHA exists and equals the current `HEAD_SHA` → ask the user via `AskUserQuestion`: "no changes since last audit on `<date>`, verdict was `<verdict>`. Re-running anyway?". If they decline, exit cleanly. A legacy state file may carry `"verdict": "SAFE"` from an earlier plugin version; display it as `NO FINDINGS (static)`.
 - If a previous SHA exists and differs → run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/compute_delta.sh" "$REPO_PATH" <prev_sha>` to capture the list of changed files. Pass this list to each sub-agent so they scope their work to it.
 - If no previous SHA → fall back to a full audit and notify the user that delta mode requires a prior audit.
 
@@ -137,7 +137,9 @@ Collect all five reports. For each finding:
 3. Compute the verdict:
    - Any `FAIL` → `UNSAFE`.
    - No `FAIL` but any `CAUTION` → `CAUTION`.
-   - Only `OK` → `SAFE`.
+   - Only `OK` → `NO FINDINGS (static)`.
+
+   The clean verdict is deliberately `NO FINDINGS (static)`, not `SAFE`: a static audit can only report the absence of matches, not the presence of safety. Runtime-assembled payloads, sub-threshold encodings, and semantic injection the model missed are all outside what a clean result rules out.
 4. Compute the risk score (0–10):
    - 0 findings of any negative severity → `0`.
    - At least one `FAIL` → start at `7`, add `1` for each additional `FAIL` (cap at `10`), then add `1` per `CAUTION` (still capped at `10`).
@@ -169,7 +171,7 @@ Write `~/.claude/plugin-auditor-reports/.state/${REPO_SLUG}.json` with:
   "sha": "<HEAD_SHA>",
   "short_sha": "<SHORT_SHA>",
   "date": "<YYYY-MM-DD>",
-  "verdict": "<SAFE|CAUTION|UNSAFE>",
+  "verdict": "<NO FINDINGS (static)|CAUTION|UNSAFE>",
   "risk_score": <int>,
   "report_path": "<absolute path to the report .md>"
 }
@@ -220,7 +222,7 @@ Run this step ONLY if the orchestrator cloned the repository itself in Step 0 (i
 
 ## Failure modes
 
-- **Sub-agent fails silently** → record the failure in the report's `## Audit metadata` section as a `WARNING: <agent> did not return a structured report`. The verdict cannot be `SAFE` if any sub-agent failed; downgrade to at least `CAUTION`.
+- **Sub-agent fails silently** → record the failure in the report's `## Audit metadata` section as a `WARNING: <agent> did not return a structured report`. The verdict cannot be `NO FINDINGS (static)` if any sub-agent failed; downgrade to at least `CAUTION`.
 - **`clone_repo.sh` rejects the URL** → tell the user the URL was not on the allowlist and exit. Do not try other methods.
 - **`git -C <path> rev-parse HEAD` fails** → fall back to `nogit-<timestamp>` SHA, skip delta mode, and add a `CAUTION` finding "Repository is not under version control — provenance cannot be verified".
 

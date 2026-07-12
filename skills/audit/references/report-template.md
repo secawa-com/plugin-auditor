@@ -9,7 +9,7 @@ Use ASCII characters only (no emojis) to match the project conventions documente
 ```markdown
 # Security Audit: <repo-name>
 
-**Date:** <YYYY-MM-DD> | **Commit:** <short-sha> | **Verdict:** <SAFE|CAUTION|UNSAFE> | **Risk Score:** <N>/10
+**Date:** <YYYY-MM-DD> | **Commit:** <short-sha> | **Verdict:** <NO FINDINGS (static)|CAUTION|UNSAFE> | **Risk Score:** <N>/10
 
 ## Executive Summary
 
@@ -17,6 +17,10 @@ Use ASCII characters only (no emojis) to match the project conventions documente
 for that verdict. End with a clear recommendation: "Install with normal caution.",
 "Install only after the listed caution items are reviewed.", or
 "Do not install in the current state.">
+
+> This verdict applies to exactly the commit below. Install this SHA; running
+> `/plugin update` to a newer state invalidates the audit — re-run it (for
+> example with `--delta`) before trusting the update.
 
 ## Red Flags (<count>)
 
@@ -93,4 +97,4 @@ for that verdict. End with a clear recommendation: "Install with normal caution.
 - One finding per numbered subsection. Do not combine multiple lines of evidence in one block.
 - Quote at most three lines of evidence per finding. If more is needed, link to the file path.
 - The "Verified OK" list is not optional. A clean repo still has a long list of positive checks; show them so the user understands what was actually vetted.
-- Always include the metadata block, even on `SAFE` verdicts.
+- Always include the metadata block, even on `NO FINDINGS (static)` verdicts.

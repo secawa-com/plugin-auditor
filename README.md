@@ -12,7 +12,7 @@ Static security audit for projects extending Claude (skills, agents, hooks, plug
 
 The Claude Code ecosystem is growing fast: skills, agents, hooks, plugins, MCP servers, and slash commands are shipped in public repositories that anyone can clone and install with a single command. This is also a textbook supply-chain attack surface — a malicious skill can instruct Claude to leak credentials, a hook can persist across sessions, an MCP server can fetch arbitrary code at runtime, and a `postinstall` script can run before you ever inspect the code.
 
-`plugin-auditor` runs a fully static security audit of a repository before you trust it. The plugin exposes a single user-invocable skill (`/plugin-auditor:audit`) that orchestrates five specialized sub-agents in parallel — each scanning a different risk dimension (static code, Claude artifacts, supply chain, configuration, network and filesystem patterns) — and produces a single markdown report with a clear verdict (`SAFE`, `CAUTION`, or `UNSAFE`), every finding backed by a file path and line number.
+`plugin-auditor` runs a fully static security audit of a repository before you trust it. The plugin exposes a single user-invocable skill (`/plugin-auditor:audit`) that orchestrates five specialized sub-agents in parallel — each scanning a different risk dimension (static code, Claude artifacts, supply chain, configuration, network and filesystem patterns) — and produces a single markdown report with a clear verdict (`NO FINDINGS (static)`, `CAUTION`, or `UNSAFE`), every finding backed by a file path and line number.
 
 The plugin never executes audited code. It only reads, greps, and reasons.
 
@@ -119,9 +119,11 @@ Reports are timestamped — re-running on the same repository never overwrites o
 
 | Verdict   | Meaning                                                                                                                                | Action                                  |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| `SAFE`    | No findings.                                                                                                                           | Install with normal caution.            |
+| `NO FINDINGS (static)` | Nothing matched. This states the absence of matches, not the presence of safety — runtime-assembled payloads and semantic injection the model missed are outside what a clean result rules out. | Install with normal caution.            |
 | `CAUTION` | At least one ambiguous pattern (network call to a non-allowlisted domain, postinstall script, broad permissions).                      | Read the report and decide per finding. |
 | `UNSAFE`  | At least one hard fail (hardcoded credentials, prompt injection, `curl ... \| bash`, persistence hook, default-on PreToolUse hook...). | Do not install.                         |
+
+A verdict applies to exactly the audited commit (SHA). Install that commit; running `/plugin update` to a newer state invalidates the audit, so re-run it (for example with `--delta`) before trusting the update.
 
 ### Interactive drill-down
 
@@ -274,8 +276,8 @@ about where the floor is:
   grep. The `auditor-claude-artifacts` semantic-intent pass is the defence here, and it is
   model-driven, not deterministic, so it is strong but not a guarantee.
 - **Runtime-assembled secrets and payloads.** A secret or command reassembled from string
-  concatenation at runtime (`"AKIA" + "REST…"`) is not visible to a per-line scan. `SAFE` on
-  the secret check means "no matches against the catalogue", not "no credentials".
+  concatenation at runtime (`"AKIA" + "REST…"`) is not visible to a per-line scan. A clean
+  secret check means "no matches against the catalogue", not "no credentials".
 - **Sub-256-bit but sub-threshold encodings.** The obfuscation floor is 64 chars with an
   entropy gate; a payload shaped to sit under both, or encoded with a scheme not in the
   decoder catalogue, can still slip through.
