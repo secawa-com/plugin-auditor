@@ -64,6 +64,8 @@ When you find a Dockerfile or setup script that contains a curl-bash pattern or 
 
 ## Output format
 
+Tag every FAIL and CAUTION finding with `[mechanical]` after its title — your findings come from deterministic config, workflow, and Dockerfile analysis, not model judgment.
+
 ```markdown
 ### FAIL
 - `<path>:<line>` — <description>

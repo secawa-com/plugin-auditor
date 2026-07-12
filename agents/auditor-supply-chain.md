@@ -57,6 +57,8 @@ For step 2 you may use a quick `Bash` invocation with a small inline Python snip
 
 ## Output format
 
+Tag every FAIL and CAUTION finding with `[mechanical]` after its title — your findings come from deterministic manifest and lockfile analysis, not model judgment.
+
 ```markdown
 ### FAIL
 - `<path>:<line>` — <description>

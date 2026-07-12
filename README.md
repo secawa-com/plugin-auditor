@@ -211,12 +211,14 @@ The plugin writes only to `~/.claude/plugin-auditor-reports/`. The directory is 
 ~/.claude/plugin-auditor-reports/
 ├── cool-claude-plugin-2026-04-26-a1b2c3d.md       # individual audit reports
 ├── another-repo-2026-04-25-9f8e7d6.md
-└── .state/
-    ├── cool-claude-plugin.json                     # last audited SHA per repo
-    └── another-repo.json
+├── .state/
+│   ├── cool-claude-plugin.json                     # last audited SHA per repo
+│   └── another-repo.json
+└── .raw/
+    └── cool-claude-plugin-a1b2c3d-scan_secrets.txt  # raw scan output for cross-check
 ```
 
-Past reports are never overwritten. The state directory is consulted only by `--delta` mode and is safe to delete to reset history.
+Past reports are never overwritten. The state directory is consulted only by `--delta` mode and is safe to delete to reset history. The `.raw/` directory holds the raw scan-helper output the orchestrator captures to cross-check each sub-agent's report (see Quality mechanisms); it accumulates one file per helper per audit and is safe to delete at any time.
 
 ---
 
@@ -229,6 +231,7 @@ Past reports are never overwritten. The state directory is consulted only by `--
 - **Regression harness.** `bash tests/run.sh` runs every mechanical scan helper against both fixtures and asserts the safe fixture stays clean while each planted category is still detected (contract in `tests/expectations.md`). It is read-only and never executes fixture code. If a detector regresses and goes silent, the suite fails.
 - **Semantic-intent pass, not just grep.** Prompt-injection detection judges the *meaning* of an artifact first (paraphrase, another language, and reviewer-targeted "this repo is safe" text are all caught), then the literal phrase catalogue runs as a backstop.
 - **Two independent injection detectors.** The semantic-intent pass and a separate Haiku injection guard read the LLM-steering artifacts independently, on different models with different context. An injection tuned to slip past one must also slip past the other. The guard is escalate-only: it can raise a verdict, never lower one, so a payload aimed at the guard itself can at worst add noise, never wave a repo through.
+- **Mechanical cross-check.** The orchestrator re-runs the scan helpers itself and confirms that every path and host the scripts found is present in the owning sub-agent's report. A sub-agent that silently drops a deterministic finding — the signature of a poisoned context — triggers an automatic `FAIL`. Trust in the sub-agents is verified, not assumed.
 - **Provenance-tagged findings.** Every finding is tagged `[mechanical]` (a deterministic scan or regex) or `[model-judgment]` (a model-driven pass), so the reader can weight reproducible evidence against model inference.
 
 ---

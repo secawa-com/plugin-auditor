@@ -51,7 +51,7 @@ You also have the obfuscation pattern catalogue at `${SCRIPTS_PATH}/../reference
 
 ## Output format
 
-Return exactly one markdown block. No extra commentary before or after.
+Return exactly one markdown block. No extra commentary before or after. Tag every FAIL and CAUTION finding with `[mechanical]` after its title — your findings all come from deterministic scans and grep, not model judgment.
 
 ```markdown
 ### FAIL

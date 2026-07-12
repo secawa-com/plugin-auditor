@@ -57,7 +57,7 @@ For each finding, open the file with `Read` to confirm context and quote a repre
 
 ## Output format
 
-Return exactly one markdown block:
+Return exactly one markdown block. Tag each FAIL and CAUTION finding after its title: `[mechanical]` when it came from a literal grep match or a tool-grant / frontmatter check, `[model-judgment]` when it came from the pass-0 semantic-intent reading. A finding that both the grep and the semantic pass reached is `[mechanical]` (the reproducible signal is enough).
 
 ```markdown
 ### FAIL
