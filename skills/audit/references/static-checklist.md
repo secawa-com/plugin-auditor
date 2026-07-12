@@ -26,6 +26,7 @@ The scanner covers two families:
 
 - **Prefix-catalogue matches** — provider keys with a distinctive prefix (`AKIA`, `ghp_`, `sk-ant-`, `sk-proj-`, `SG.`, `SK…`, `AccountKey=`, etc.).
 - **`generic_high_entropy_assignment`** — a provider-agnostic secret assigned to a credential-named variable (`api_token = "…"`) with no recognisable prefix, gated on Shannon entropy so placeholders (`changeme`, `xxxxxx`, low-variety strings) do not fire.
+- **`generic_bearer`** — an `Authorization: Bearer <token>` header value, gated on the same entropy and placeholder checks so documentation like `Bearer YOUR_API_TOKEN_HERE` does not fire; only a high-entropy value is reported.
 
 If a match is in a file under `tests/`, `examples/`, or `docs/` AND the value is obviously fake (e.g., `sk-test-12345`), downgrade to `CAUTION` with a note that test fixtures should still avoid realistic-looking keys.
 

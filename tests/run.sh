@@ -29,6 +29,12 @@ count_cat() { grep -c -- "$2" <<<"$1" 2>/dev/null || true; }
 echo "== safe-fixture: expect zero findings from every helper =="
 for s in scan_secrets scan_obfuscation scan_network scan_binaries; do
   out="$(bash "${SCRIPTS}/${s}.sh" "${SAFE}" 2>/dev/null || true)"
+  # scan_network emits RFC1918 / link-local addresses under a "local:" host key.
+  # Those are context for the sub-agent (CAUTION at most), not exfiltration
+  # destinations, so they do not count as findings against the safe fixture.
+  if [[ "${s}" == "scan_network" ]]; then
+    out="$(grep -v '^local:' <<<"${out}" 2>/dev/null || true)"
+  fi
   n="$(grep -c . <<<"${out}" 2>/dev/null || true)"
   # grep -c on empty input returns 0 but with a trailing state; normalise.
   [[ -z "${out}" ]] && n=0

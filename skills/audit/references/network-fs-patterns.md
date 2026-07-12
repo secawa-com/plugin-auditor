@@ -23,7 +23,8 @@ Run the network scan helper. It surfaces destinations from four passes, not just
 - A well-known infrastructure host that does not appear on the allowlist but is clearly legitimate (e.g., `cloudflare.com`, `microsoft.com`, `apple.com`) → `CAUTION` (worth a human glance).
 - A user-content subdomain on an otherwise trusted host (`*.github.io`, `*.pages.dev`, `*.web.app`, `*.workers.dev`, `*.netlify.app`, `*.vercel.app`) → `CAUTION` even though the parent domain is trusted: anyone can host an exfiltration endpoint there.
 - An obscure host: a long random subdomain, a numeric IP, a dynamic-DNS provider (`*.duckdns.org`, `*.no-ip.com`, `*.ngrok.io`, `*.serveo.net`) → `FAIL`.
-- A bare `IP:port` destination with no scheme (a common way to dodge URL-only scanners) → `FAIL` unless it is loopback/`0.0.0.0` in a clearly local context.
+- A bare `IP:port` destination with no scheme (a common way to dodge URL-only scanners) → `FAIL` unless it is loopback/`0.0.0.0` in a clearly local context. The helper validates octets (0-255), so version strings and malformed quads never reach this list.
+- A host key prefixed `local:` is an RFC1918 / link-local address (`10.*`, `192.168.*`, `172.16-31.*`, `169.254.*`). It routes only inside a network and is not an exfiltration destination, so it is `CAUTION` context at most (usually `OK` in dev docs), never `FAIL`. Documentation ranges (TEST-NET `192.0.2.*`, `198.51.100.*`, `203.0.113.*`) are deliberately NOT treated as local, because malware uses them as stand-in C2 addresses; they stay in the main stream.
 - A host that only ever appears as the argument to a DNS tool, especially with a constructed subdomain → treat as DNS-exfiltration (see #7) → `FAIL`.
 - A URL shortener (`bit.ly`, `t.co`, `goo.gl`, `tinyurl.com`) → `FAIL` (destination cannot be vetted statically).
 

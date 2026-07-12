@@ -61,13 +61,36 @@ done < <(grep -RnoE -I "${EXCLUDES[@]}" "${URL_REGEX}" "${REPO}" 2>/dev/null || 
 # --- 2) Bare IPv4[:port] literals not preceded by a word char or dot. ---
 # Captures 192.0.2.1:31337 style destinations that have no scheme.
 IP_REGEX='(^|[^0-9A-Za-z._-])([0-9]{1,3}\.){3}[0-9]{1,3}(:[0-9]{1,5})?'
+
+# valid_octets <ip> — true only when every octet is 0-255. Filters the many
+# dotted-quad lookalikes (version strings, 999.999.999.999) the regex admits.
+valid_octets() {
+  local IFS=.
+  local o1 o2 o3 o4
+  read -r o1 o2 o3 o4 <<<"$1"
+  for o in "$o1" "$o2" "$o3" "$o4"; do
+    [[ "$o" =~ ^[0-9]+$ ]] || return 1
+    (( o >= 0 && o <= 255 )) || return 1
+  done
+  return 0
+}
+
 while IFS= read -r hit; do
   path="${hit%%:*}"; rest="${hit#*:}"; lineno="${rest%%:*}"; frag="${rest#*:}"
   ip="$(printf '%s' "${frag}" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}(:[0-9]{1,5})?' | head -n1 || true)"
   host="${ip%%:*}"
-  # Skip obvious version strings / loopback / unspecified.
+  # Skip loopback / unspecified / broadcast and anything that is not a real IPv4.
   case "${host}" in
     ""|0.0.0.0|127.0.0.1|255.255.255.255) continue ;;
+  esac
+  valid_octets "${host}" || continue
+  # RFC1918 private space and link-local are routable only inside a network, so
+  # they are not exfiltration destinations; surface them as a distinct 'local'
+  # host key that the sub-agent treats as CAUTION context, not a FAIL. Documentation
+  # ranges (TEST-NET) stay in the main stream because malware uses them as stand-ins.
+  case "${host}" in
+    10.*|192.168.*|169.254.*) emit "local:${ip}" "${path}:${lineno}" "${ip}"; continue ;;
+    172.1[6-9].*|172.2[0-9].*|172.3[0-1].*) emit "local:${ip}" "${path}:${lineno}" "${ip}"; continue ;;
   esac
   emit "${ip}" "${path}:${lineno}" "${ip}"
 done < <(grep -RnoE -I "${EXCLUDES[@]}" "${IP_REGEX}" "${REPO}" 2>/dev/null || true)
