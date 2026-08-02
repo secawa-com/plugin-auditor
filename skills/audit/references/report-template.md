@@ -9,7 +9,7 @@ Use ASCII characters only (no emojis) to match the project conventions documente
 ```markdown
 # Security Audit: <repo-name>
 
-**Date:** <YYYY-MM-DD> | **Commit:** <short-sha> | **Verdict:** <SAFE|CAUTION|UNSAFE> | **Risk Score:** <N>/10
+**Date:** <YYYY-MM-DD> | **Commit:** <short-sha> | **Verdict:** <NO FINDINGS (static)|CAUTION|UNSAFE> | **Risk Score:** <N>/10
 
 ## Executive Summary
 
@@ -18,15 +18,21 @@ for that verdict. End with a clear recommendation: "Install with normal caution.
 "Install only after the listed caution items are reviewed.", or
 "Do not install in the current state.">
 
+> This verdict applies to exactly the commit below. Install this SHA; running
+> `/plugin update` to a newer state invalidates the audit — re-run it (for
+> example with `--delta`) before trusting the update.
+
 ## Red Flags (<count>)
 
-### 1. <Short title>
+Each finding carries a provenance tag: `[mechanical]` for a deterministic detector (scan helper, regex, entropy) or `[model-judgment]` for a model-driven pass (the semantic-intent pass or the injection guard). The tag lets the reader weight the evidence: a mechanical finding is reproducible; a model-judgment finding is strong but not a guarantee.
+
+### 1. <Short title> `[mechanical|model-judgment]`
 - **Where:** `<path>:<line>`
 - **Evidence:** `> <single quoted line from the file>`
 - **Risk:** <one or two sentences explaining why this is dangerous>
 - **Recommendation:** <what the user should do — reject, request a fix, mitigate locally>
 
-### 2. <Short title>
+### 2. <Short title> `[mechanical|model-judgment]`
 - **Where:** ...
 - ...
 
@@ -34,7 +40,7 @@ for that verdict. End with a clear recommendation: "Install with normal caution.
 
 ## Caution (<count>)
 
-### 1. <Short title>
+### 1. <Short title> `[mechanical|model-judgment]`
 - **Where:** `<path>:<line>`
 - **Evidence:** `> <quoted line>`
 - **Risk:** <why it's worth attention even though it's not an automatic fail>
@@ -70,14 +76,20 @@ for that verdict. End with a clear recommendation: "Install with normal caution.
 
 <verbatim report>
 
+### auditor-injection-guard
+
+<the guard's JSON findings, rendered as a short list; or "no suspected injection" when empty>
+
 ## Audit metadata
 
-- **plugin-auditor version:** 0.2.0
+- **plugin-auditor version:** 0.3.0
 - **Repository path:** `<absolute path>`
 - **Repository origin:** `<git remote URL or "local checkout">`
 - **HEAD SHA:** `<full SHA>`
 - **Delta mode:** `<true|false>` (if true, include the previous SHA and the count of changed files)
-- **Sub-agents:** auditor-static, auditor-claude-artifacts, auditor-supply-chain, auditor-config, auditor-network-fs
+- **Sub-agents:** auditor-static, auditor-claude-artifacts, auditor-supply-chain, auditor-config, auditor-network-fs, auditor-injection-guard
+- **Semantic-pass models:** auditor-claude-artifacts (opus), auditor-injection-guard (haiku)
+- **Guard/auditor agreement:** `<in agreement | disagreement on N file(s)>`
 - **Files scanned:** <count>
 - **Lines of code (approx):** <count>
 - **Audit started:** <ISO timestamp>
@@ -93,4 +105,4 @@ for that verdict. End with a clear recommendation: "Install with normal caution.
 - One finding per numbered subsection. Do not combine multiple lines of evidence in one block.
 - Quote at most three lines of evidence per finding. If more is needed, link to the file path.
 - The "Verified OK" list is not optional. A clean repo still has a long list of positive checks; show them so the user understands what was actually vetted.
-- Always include the metadata block, even on `SAFE` verdicts.
+- Always include the metadata block, even on `NO FINDINGS (static)` verdicts.

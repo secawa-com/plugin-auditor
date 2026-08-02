@@ -32,6 +32,8 @@ Read both reference files on every run.
    - Obscure host, dynamic-DNS provider, numeric IP → `FAIL`.
    - URL shortener → `FAIL` (destination cannot be vetted statically).
 
+   **Enumerate every host from `scan_network.sh` in your report, including allowlisted ones.** List the allowlisted hosts explicitly in the `OK` section (a single line naming each is fine) rather than collapsing them into a bare "all URLs allowlisted". The orchestrator cross-checks your report against the raw scan output by host name; a host that never appears reads as a suppressed finding and triggers a `FAIL`.
+
 3. **Inspect the calling code.** For each non-OK host, open the calling file with `Read` to determine:
    - Is the URL hardcoded or constructed from input?
    - Is the response fed into a shell or interpreter?
@@ -57,6 +59,8 @@ Read both reference files on every run.
 10. **Telemetry.** Identify telemetry endpoints. Default-on telemetry sending free-form data is `CAUTION`. Telemetry that includes secret-pattern matches is `FAIL`.
 
 ## Output format
+
+Tag every FAIL and CAUTION finding with `[mechanical]` after its title — your findings come from deterministic host extraction and grep, not model judgment.
 
 ```markdown
 ### FAIL

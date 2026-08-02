@@ -10,7 +10,9 @@ Legitimate code rarely needs to encode logic at runtime. When a repository decod
 
 ### 1. High-entropy text blocks
 
-A block of consecutive base64, base32 or hex characters of 64 bytes or more with high Shannon entropy is a strong indicator of an embedded payload. The threshold is 64 (not 256): a stager or loader payload fits in far fewer characters than a full script, so a 256-char floor let short payloads through. The entropy gate (4.0 bits/char for the base alphabets, 3.2 for hex) keeps prose, identifiers, and ordinary hashes out.
+A block of consecutive base64, base32 or hex characters of 64 bytes or more with high Shannon entropy is a strong indicator of an embedded payload. The threshold is 64 (not 256): a stager or loader payload fits in far fewer characters than a full script, so a 256-char floor let short payloads through. The entropy gate (4.0 bits/char for the base alphabets, 3.2 for hex) keeps prose and identifiers out.
+
+The hex gate alone does not exclude checksums: a sha256 digest is 64 hex chars with entropy around 3.8, above the 3.2 floor. The helper therefore skips a hex-only blob whose length is a known digest width (40 / 64 / 128) when the line names a hash (`sha1`, `sha256`, `sha512`, `integrity`, `checksum`, `digest`, `hash`) or the blob is a git-style pin immediately preceded by `@`. This is applied before the base64 pass too, since a 64-hex run is also a valid base64 alphabet run. Legitimate digest pinning (Docker `@sha256:`, action SHAs, lockfile `integrity`) is expected and stays `OK`.
 
 The obfuscation helper reports lines that exceed the threshold. The agent then reads the surrounding context to decide:
 
@@ -27,7 +29,9 @@ Any sequence where:
 
 This combination is `FAIL`. The decoded result need not be inspected; the pattern itself is the finding.
 
-The helper detects this **both on a single line and across lines in the same file**: a decode into a variable followed later by an `exec`/`eval`/`system`/`spawn` of that variable is reported as `decode_exec_multiline`. Splitting the decode and the execution onto separate statements is a common evasion of a naive same-line grep and does not evade this pass.
+The helper detects this **both on a single line and across lines in the same file**: a decode followed by an `exec`/`eval`/`system`/`spawn` within a 25-line window is reported as `decode_exec_multiline`. The window bounds the pairing in both directions, so an unrelated decode and execution at opposite ends of a large file do not chain into a false positive. Splitting the decode and the execution onto separate statements is a common evasion of a naive same-line grep and does not evade this pass.
+
+Two narrowings avoid common false positives: the execution match for `compile(` excludes the stdlib pattern-compilers `re.compile` and `regex.compile` (a module-qualified `builtins.compile` is still caught), and the `bytes([...])` decode primitive requires a numeric byte-list of at least eight elements so an ordinary `bytes([0])` is not read as a payload builder.
 
 ### 3. String concatenation to hide commands
 

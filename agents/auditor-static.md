@@ -31,6 +31,7 @@ You also have the obfuscation pattern catalogue at `${SCRIPTS_PATH}/../reference
    - `bash ${SCRIPTS_PATH}/scan_secrets.sh ${REPO_PATH}`
    - `bash ${SCRIPTS_PATH}/scan_obfuscation.sh ${REPO_PATH}`
    - `bash ${SCRIPTS_PATH}/scan_binaries.sh ${REPO_PATH}`
+   - `bash ${SCRIPTS_PATH}/scan_unicode.sh ${REPO_PATH}` — invisible / deceptive Unicode. A `zero_width`, `bidi_override`, or `invisible_format` finding inside a Claude artifact (SKILL.md, agent, command, CLAUDE.md, hook, `.mcp.json`, plugin.json) is `FAIL`; a `homoglyph` finding or any of these in ordinary source is `CAUTION`.
 
 2. **Use Grep for the patterns from the static checklist** that the helpers do not cover:
    - Reverse-shell signatures already covered by `scan_obfuscation.sh` — do not duplicate.
@@ -50,7 +51,7 @@ You also have the obfuscation pattern catalogue at `${SCRIPTS_PATH}/../reference
 
 ## Output format
 
-Return exactly one markdown block. No extra commentary before or after.
+Return exactly one markdown block. No extra commentary before or after. Tag every FAIL and CAUTION finding with `[mechanical]` after its title — your findings all come from deterministic scans and grep, not model judgment.
 
 ```markdown
 ### FAIL

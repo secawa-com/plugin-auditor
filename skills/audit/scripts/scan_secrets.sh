@@ -56,7 +56,6 @@ PATTERNS=(
   'sendgrid_key|SG\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}'
   'twilio_key|SK[0-9a-fA-F]{32}'
   'azure_storage_key|AccountKey=[A-Za-z0-9+/]{40,}={0,2}'
-  'generic_bearer|[Bb]earer[[:space:]]+[A-Za-z0-9._-]{24,}'
 )
 
 for pair in "${PATTERNS[@]}"; do
@@ -117,6 +116,10 @@ ASSIGN = re.compile(
     r"""\s*[:=]\s*['"](?P<val>[A-Za-z0-9+/_=-]{24,})['"]""",
     re.IGNORECASE,
 )
+# Authorization: Bearer <token>. Gated on the same entropy/placeholder checks as
+# the generic assignment so documentation like "Bearer YOUR_API_TOKEN_HERE" does
+# not fire; only a high-entropy value survives.
+BEARER = re.compile(r"[Bb]earer\s+(?P<val>[A-Za-z0-9._-]{24,})")
 # Reject obvious placeholders / non-secrets.
 DUMMY = re.compile(
     r"^(x{6,}|\.{3,}|change[_-]?me|your[_-]|example|placeholder|dummy|test|sample|"
@@ -131,6 +134,9 @@ def entropy(s):
     n = len(s)
     return -sum((k / n) * math.log2(k / n) for k in c.values())
 
+def looks_secret(val):
+    return not (DUMMY.match(val) or len(set(val)) < 12 or entropy(val) < 3.5)
+
 for root, dirs, files in os.walk(repo):
     dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
     for fn in files:
@@ -141,16 +147,16 @@ for root, dirs, files in os.walk(repo):
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
                 for lineno, line in enumerate(f, start=1):
                     m = ASSIGN.search(line)
-                    if not m:
+                    if m and looks_secret(m.group("val")):
+                        val = m.group("val")
+                        redacted = f"{m.group('key')}={val[:8]}<REDACTED:{len(val)-8}chars>"
+                        print(f"{path}:{lineno}:generic_high_entropy_assignment:{redacted}")
                         continue
-                    val = m.group("val")
-                    if DUMMY.match(val) or len(set(val)) < 12:
-                        continue
-                    if entropy(val) < 3.5:
-                        continue
-                    keep = val[:8]
-                    redacted = f"{m.group('key')}={keep}<REDACTED:{len(val)-8}chars>"
-                    print(f"{path}:{lineno}:generic_high_entropy_assignment:{redacted}")
+                    b = BEARER.search(line)
+                    if b and looks_secret(b.group("val")):
+                        val = b.group("val")
+                        redacted = f"bearer {val[:8]}<REDACTED:{len(val)-8}chars>"
+                        print(f"{path}:{lineno}:generic_bearer:{redacted}")
         except (OSError, UnicodeDecodeError):
             continue
 PYEOF

@@ -26,6 +26,7 @@ The scanner covers two families:
 
 - **Prefix-catalogue matches** — provider keys with a distinctive prefix (`AKIA`, `ghp_`, `sk-ant-`, `sk-proj-`, `SG.`, `SK…`, `AccountKey=`, etc.).
 - **`generic_high_entropy_assignment`** — a provider-agnostic secret assigned to a credential-named variable (`api_token = "…"`) with no recognisable prefix, gated on Shannon entropy so placeholders (`changeme`, `xxxxxx`, low-variety strings) do not fire.
+- **`generic_bearer`** — an `Authorization: Bearer <token>` header value, gated on the same entropy and placeholder checks so documentation like `Bearer YOUR_API_TOKEN_HERE` does not fire; only a high-entropy value is reported.
 
 If a match is in a file under `tests/`, `examples/`, or `docs/` AND the value is obviously fake (e.g., `sk-test-12345`), downgrade to `CAUTION` with a note that test fixtures should still avoid realistic-looking keys.
 
@@ -39,6 +40,19 @@ Run `bash <scripts>/scan_obfuscation.sh <REPO_PATH>`. The script reports:
 - Decode-then-execute chains, both same-line and across lines in one file: a decode primitive (`b64decode`, `b32decode`, `unhexlify`, `fromhex`, `zlib`/`gzip`/`lzma.decompress`, `Buffer.from(..., 'base64')`, `atob`, `String.fromCharCode`, `bytes([...])`) whose result reaches an `exec`/`eval`/`compile`/`system`/`spawn`.
 
 Each match is a `FAIL`.
+
+The digest / git-SHA exception keeps legitimate pinning (`@sha256:`, action SHAs, lockfile `integrity`) out; `re.compile` and `bytes([0])` do not read as decode-then-execute.
+
+### 2a. Invisible and deceptive Unicode
+
+Run `bash <scripts>/scan_unicode.sh <REPO_PATH>`. The script reports characters a human reviewer cannot see but a language model reads:
+
+- `zero_width` — U+200B/200C/200D/2060/FEFF.
+- `bidi_override` — U+202A-202E, U+2066-2069 (visually reorder text).
+- `invisible_format` — other Cf/Cc format or control characters.
+- `homoglyph` — Cyrillic/Greek letters rendered like ASCII Latin.
+
+Inside a Claude artifact (SKILL.md, agent, command, CLAUDE.md, hook, `.mcp.json`, plugin.json) these are a `FAIL`: hidden characters in an instruction that steers an LLM are a prompt-injection vector. In ordinary source they are `CAUTION`. This is a mechanical detector; the artifact auditor's raw-bytes check relies on it rather than reproducing it.
 
 ### 3. Reverse-shell signatures
 
@@ -130,6 +144,7 @@ Return a single markdown block:
 ### OK
 - No matches against the secret catalogue (scan_secrets.sh: 0 matches; note: runtime-concatenated secrets are out of scope)
 - No obfuscated payloads detected (scan_obfuscation.sh: 0 matches)
+- No invisible or deceptive Unicode detected (scan_unicode.sh: 0 matches)
 - No reverse-shell signatures detected
 - No modifications to global dotfiles
 - No OS persistence patterns detected

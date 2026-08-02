@@ -171,7 +171,7 @@ constitute a session-spanning surveillance and remote-control surface.
 
 ## Audit metadata
 
-- **plugin-auditor version:** 0.1.2
+- **plugin-auditor version:** 0.3.0
 - **Repository origin:** `https://github.com/some-author/productivity-buddy`
 - **HEAD SHA:** `4f7a91c2e1d8b6a3f5c0e9d7b2a4f6e8c1d3a5b7`
 - **Delta mode:** false
