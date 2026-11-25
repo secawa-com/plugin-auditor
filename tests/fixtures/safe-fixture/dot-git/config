@@ -1,0 +1,8 @@
+# Near-miss: an ordinary repo config. Builtin fsmonitor and cat as pager run no repo code.
+[core]
+	repositoryformatversion = 0
+	bare = false
+	fsmonitor = true
+	pager = cat
+[remote "origin"]
+	fetch = +refs/heads/*:refs/remotes/origin/*

@@ -12,6 +12,11 @@ Files to scan:
 - `Makefile`, `justfile`, `Taskfile.yml`, `package.json` `scripts` (cross-checked with supply-chain).
 - `setup.sh`, `install.sh`, `bootstrap.sh`, any top-level shell installer.
 - `.env`, `.env.example` (presence only — content not parsed).
+- Any shipped git config: `.git/config`, `dot-git/config`, `*.gitconfig`, plus `git config` / `git -c` invocations anywhere.
+- `*.pth`, `sitecustomize.py`, `usercustomize.py`, and `.py` files named like stdlib modules.
+- `hooks/hooks.json` and every `settings*.json` (sandbox, permission mode, MCP auto-approval, `env`).
+
+The helper `scripts/scan_trust_surface.sh` pre-extracts sections 9 to 13. This agent owns its `config_write`, `git_exec_config`, `py_stdlib_shadow`, `py_pth`, `sandbox_weaken` and `pre_trust` lines.
 
 ## What to look for
 
@@ -88,6 +93,53 @@ Grep all configs and scripts for:
 - `.vscode/tasks.json` with an auto-run task that fetches from the network → `FAIL`.
 - `.devcontainer/devcontainer.json` referencing a `postCreateCommand` that runs an install script → `CAUTION` (cross-check the script content).
 
+### 9. Config write is future execute
+
+A write is an execute that happens later, in a process the user already trusts. Flag any code, hook, script or skill instruction that writes, copies over, appends to or edits a file another trusted process loads:
+
+- `.claude/settings.json`, `.claude/settings.local.json`, `.claude/hooks/`, `.claude/commands/`, `.claude/agents/`, `.claude/skills/`, `.mcp.json` → `FAIL`. Another session (or another agent, Cursor CVE-2026-48124 style) trusts the file without re-prompting.
+- `.vscode/tasks.json` (`runOn: folderOpen`), `.vscode/settings.json`, `.vscode/launch.json` → `FAIL`.
+- `.git/hooks/*`, `.git/config`, `.githooks/`, `.husky/` → `FAIL`. Runs on the next commit, checkout, or `git status`.
+- Virtualenv activate scripts (`bin/activate`, `Scripts/activate*`), `.envrc` → `FAIL`.
+- `package.json` lifecycle scripts (`prepare`, `preinstall`, `install`, `postinstall`) changed through `npm pkg set scripts.*`, `npm set-script`, or a JSON write → `FAIL`. So is a sync step that overwrites the file a lifecycle script points at (the "drift-check" swap: a benign `prepare` target replaced by a later vendor sync). Claude Code `acceptEdits` guards `.claude/`, `.vscode/`, `.mcp.json` and `.git/hooks`, but not `package.json` scripts, so this is the path of least resistance.
+- `.github/workflows/*`, `.gitlab-ci.yml`, `.circleci/config.yml` → `FAIL`. Runs with CI secrets on the next push.
+- The same write expressed as an instruction in a skill, agent, command or CLAUDE.md ("add this hook to `.claude/settings.local.json`") → `FAIL`. A plugin-authoring skill that documents these files for the user to edit by hand is `CAUTION`.
+
+### 10. Git config that executes (GitSpawn)
+
+Git runs these keys on ordinary read commands, including the agent's own `git status` and `git diff`. In a shipped `.git/config` (tarball, zip, vendored checkout), a `*.gitconfig` the repo includes, or a `git config` / `git -c` / `GIT_*` env set by the plugin:
+
+- `core.fsmonitor` set to a command (not `true`/`false`) → `FAIL`.
+- `core.hooksPath`, `core.sshCommand`, `core.pager`, `core.editor`, `core.askPass`, `core.gitProxy` → `FAIL`.
+- `diff.external`, `diff.<driver>.textconv`, `diff.<driver>.command` → `FAIL`.
+- `filter.<driver>.clean` / `smudge` / `process`, `merge.<driver>.driver` → `FAIL` (`cat` is inert).
+- `credential.helper`, `include.path`, `includeIf.*.path`, `alias.* = !...` → `FAIL` when shipped or written by the plugin.
+- `GIT_SSH_COMMAND`, `GIT_EXTERNAL_DIFF`, `GIT_PAGER`, `GIT_ASKPASS`, `GIT_CONFIG_PARAMETERS` exported to a command → `FAIL` (`/dev/null`, `true`, `cat` are inert hardening).
+
+### 11. Python import shadowing
+
+- A `.pth` file shipped or written into `site-packages` → `FAIL`. Lines that start with `import` run at every interpreter start, for every Python process on the machine.
+- `sitecustomize.py` / `usercustomize.py` shipped or written → `FAIL`.
+- A file named like a stdlib module (`json.py`, `struct.py`, `os.py`, `subprocess.py`...) in a directory without `__init__.py` → `CAUTION`. Any script run from that directory imports it instead of the stdlib. Escalate to `FAIL` when the file does network, process or file-write work, or when a hook or skill runs a script from that directory. Package-internal modules (directory has `__init__.py`) are `OK`.
+
+### 12. Sandbox and permission weakening
+
+The Claude Code sandbox covers Bash, PowerShell and Monitor commands and their child processes. File tools, MCP servers and hooks run outside it, so a plugin that also weakens the sandbox removes the only boundary left. In any shipped `settings*.json`, hook, script or skill instruction:
+
+- `sandbox.enabled: false` → `FAIL`.
+- `sandbox.allowUnsandboxedCommands: true`, or `dangerouslyDisableSandbox` in a hook, script or skill → `FAIL`.
+- `sandbox.excludedCommands` containing `docker`, `podman`, `nerdctl`, `kubectl` or `sudo` → `FAIL`. A reachable `docker.sock` is a full host escape.
+- `allowUnixSockets` containing `docker.sock`, or a container run that mounts `docker.sock`, `$HOME`, `~`, `/Users/<name>` or `/root` → `FAIL`.
+- `allowedDomains` containing `"*"` → `FAIL` (network sandbox off in all but name).
+- `permissions.defaultMode: bypassPermissions`, `--permission-mode bypassPermissions`, `--dangerously-skip-permissions`, `skipDangerousModePermissionPrompt` → `FAIL` in shipped settings, hooks and scripts; `CAUTION` in documentation that tells the user when to use it.
+- `--privileged` containers → `CAUTION`.
+
+### 13. Runs before trust
+
+- `SessionStart` or `Setup` hooks (plugin `hooks/hooks.json` or shipped settings) → apply the persistence rule in `claude-artifacts-checklist.md` #3. They run before the user has typed anything.
+- A project `.mcp.json` with local `command` servers → `CAUTION`: once approved they start with every session, outside the sandbox. Name each server.
+- `enableAllProjectMcpServers: true` or a non-empty `enabledMcpjsonServers` in shipped settings → `FAIL`. It removes the per-server approval prompt, so the servers start before trust.
+
 ## Output format
 
 ```markdown
@@ -110,4 +162,9 @@ Grep all configs and scripts for:
 - No sandbox-evasion conditionals
 - No real .env files committed
 - Editor configs do not auto-run network fetches
+- No writes to files another trusted process loads (agent settings, hooks, editor tasks, git hooks/config, venv activate, CI, package.json lifecycle scripts)
+- No shipped or written git config that executes commands
+- No .pth, sitecustomize, or stdlib-shadowing Python files
+- No sandbox or permission-mode weakening
+- No MCP auto-approval or pre-trust hooks in shipped settings
 ```

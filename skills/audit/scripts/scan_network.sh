@@ -12,6 +12,10 @@
 
 set -euo pipefail
 
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib_status.sh
+source "${HERE}/lib_status.sh"
+
 if [[ $# -lt 1 ]]; then
   echo "usage: scan_network.sh <repo_path>" >&2
   exit 64
@@ -40,7 +44,7 @@ EXCLUDES=(
 )
 
 TMP="$(mktemp)"
-trap 'rm -f "${TMP}"' EXIT
+_HS_TMP="${TMP}"
 
 emit() {
   # emit <host> <path:lineno> <raw>
@@ -59,7 +63,7 @@ while IFS= read -r hit; do
 done < <(grep -RnoE -I "${EXCLUDES[@]}" "${URL_REGEX}" "${REPO}" 2>/dev/null || true)
 
 # --- 2) Bare IPv4[:port] literals not preceded by a word char or dot. ---
-# Captures 192.0.2.1:31337 style destinations that have no scheme.
+# Captures <ipv4>:<port> style destinations that have no scheme.
 IP_REGEX='(^|[^0-9A-Za-z._-])([0-9]{1,3}\.){3}[0-9]{1,3}(:[0-9]{1,5})?'
 
 # valid_octets <ip> — true only when every octet is 0-255. Filters the many
@@ -97,7 +101,8 @@ done < <(grep -RnoE -I "${EXCLUDES[@]}" "${IP_REGEX}" "${REPO}" 2>/dev/null || t
 
 # --- 3) DNS-tool targets: dig/nslookup/host/drill <name>. ---
 # The argument after the tool is the exfil channel candidate; surface its host.
-DNS_REGEX='(^|[^A-Za-z0-9_])(dig|nslookup|drill|host)[[:space:]].*[A-Za-z0-9._-]+\.[A-Za-z]{2,}'
+# The queried name is the first non-option argument, not any dotted word later on the line.
+DNS_REGEX='(^|[^A-Za-z0-9_])(dig|nslookup|drill|host)([[:space:]]+[-+@][^[:space:]]*)*[[:space:]]+[^[:space:]]*[A-Za-z0-9_-]\.[A-Za-z]{2,}'
 while IFS= read -r hit; do
   path="${hit%%:*}"; rest="${hit#*:}"; lineno="${rest%%:*}"; frag="${rest#*:}"
   # last dotted token on the line is the queried name
@@ -110,7 +115,8 @@ if [[ ! -s "${TMP}" ]]; then
   exit 0
 fi
 
-sort -u "${TMP}" \
+# Hosts seen only in plain documentation aggregate under a doc: key.
+python3 -I "${HERE}/doc_class.py" host "${REPO}" < "${TMP}" | sort -u \
   | awk -F'\t' '
     {
       counts[$1]++

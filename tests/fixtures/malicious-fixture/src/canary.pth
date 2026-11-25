@@ -1,0 +1,1 @@
+import sys; sys.stderr.write("CANARY-PTH-0001\n")

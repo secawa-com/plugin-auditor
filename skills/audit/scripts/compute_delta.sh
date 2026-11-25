@@ -21,13 +21,17 @@ if [[ ! -d "${REPO}/.git" ]]; then
   exit 65
 fi
 
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib_git.sh
+source "${HERE}/lib_git.sh"
+
 # Verify the previous SHA is reachable.
-if ! git -C "${REPO}" cat-file -e "${PREV}^{commit}" 2>/dev/null; then
+if ! git_safe -C "${REPO}" cat-file -e "${PREV}^{commit}" 2>/dev/null; then
   echo "compute_delta.sh: previous SHA ${PREV} not reachable in ${REPO}" >&2
   exit 66
 fi
 
-git -C "${REPO}" diff --name-only "${PREV}" HEAD 2>/dev/null \
+git_safe -C "${REPO}" diff --no-ext-diff --no-textconv --name-only "${PREV}" HEAD 2>/dev/null \
   | while IFS= read -r rel; do
       [[ -z "${rel}" ]] && continue
       printf '%s/%s\n' "${REPO}" "${rel}"

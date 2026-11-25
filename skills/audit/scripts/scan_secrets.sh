@@ -9,6 +9,10 @@
 
 set -euo pipefail
 
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib_status.sh
+source "${HERE}/lib_status.sh"
+
 if [[ $# -lt 1 ]]; then
   echo "usage: scan_secrets.sh <repo_path>" >&2
   exit 64
@@ -98,7 +102,7 @@ done
 # Generic high-entropy secret assignment: catches provider-agnostic secrets that
 # have no distinctive prefix (api_token = "<40 random chars>"). A bare regex would
 # fire on placeholders, so we gate on Shannon entropy and reject common dummies.
-python3 - "${REPO}" <<'PYEOF'
+python3 -I - "${REPO}" <<'PYEOF'
 import math
 import os
 import re
@@ -143,6 +147,10 @@ for root, dirs, files in os.walk(repo):
         if fn in EXCLUDE_FILES:
             continue
         path = os.path.join(root, fn)
+        # open() follows a file symlink out of the repo.
+        if os.path.islink(path):
+            print(f"skipped:symlink:{os.path.relpath(path, repo)}")
+            continue
         try:
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
                 for lineno, line in enumerate(f, start=1):
@@ -158,5 +166,5 @@ for root, dirs, files in os.walk(repo):
                         redacted = f"bearer {val[:8]}<REDACTED:{len(val)-8}chars>"
                         print(f"{path}:{lineno}:generic_bearer:{redacted}")
         except (OSError, UnicodeDecodeError):
-            continue
+            print(f"skipped:unreadable:{os.path.relpath(path, repo)}")
 PYEOF

@@ -82,7 +82,7 @@ Each finding carries a provenance tag: `[mechanical]` for a deterministic detect
 
 ## Audit metadata
 
-- **plugin-auditor version:** 0.3.0
+- **plugin-auditor version:** 0.4.2
 - **Repository path:** `<absolute path>`
 - **Repository origin:** `<git remote URL or "local checkout">`
 - **HEAD SHA:** `<full SHA>`
@@ -90,6 +90,8 @@ Each finding carries a provenance tag: `[mechanical]` for a deterministic detect
 - **Sub-agents:** auditor-static, auditor-claude-artifacts, auditor-supply-chain, auditor-config, auditor-network-fs, auditor-injection-guard
 - **Semantic-pass models:** auditor-claude-artifacts (opus), auditor-injection-guard (haiku)
 - **Guard/auditor agreement:** `<in agreement | disagreement on N file(s)>`
+- **Scan helpers:** `<helper rc=N, one per helper>`; one `WARNING: <helper> failed (rc=N): <first stderr line>` per failed helper
+- **Skipped files:** `<relpath (reason)>` per path from `skipped:` lines, or "none"
 - **Files scanned:** <count>
 - **Lines of code (approx):** <count>
 - **Audit started:** <ISO timestamp>
@@ -106,3 +108,4 @@ Each finding carries a provenance tag: `[mechanical]` for a deterministic detect
 - Quote at most three lines of evidence per finding. If more is needed, link to the file path.
 - The "Verified OK" list is not optional. A clean repo still has a long list of positive checks; show them so the user understands what was actually vetted.
 - Always include the metadata block, even on `NO FINDINGS (static)` verdicts.
+- For a finding about credentials an MCP server, hook or skill holds or reaches, the **Recommendation** names the narrower alternative: a read-only or project-scoped token and short-lived credentials (AWS STS `GetScopedCredentials`, or `AssumeRole` with a session policy). See `risk-model.md`.

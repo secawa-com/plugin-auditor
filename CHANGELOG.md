@@ -4,6 +4,84 @@ All notable changes to `plugin-auditor` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.2] - 2026-11-25
+
+### Fixed
+- `doc:` tagging classified on absolute paths, so an ancestor directory (an installed plugin under `~/.claude/plugins/`) suppressed every tag and made every file an artifact for the prose `config_write` rule. Classification now uses the path relative to the audited repo, in every helper.
+- Instruction files could be tagged `doc:`: names now match case-insensitively and include `CLAUDE.local.md`, `copilot-instructions.md`, `.cursorrules` and similar rule files; anything under `skills/` (references too) and other agents' rule directories counts as an instruction file.
+- A first-party `--index-url` no longer vouches for an `--extra-index-url` on the same line: `nondefault_index` fires unless every index URL is first-party.
+- `llm_router` parses the URL host, so `https://api.anthropic.com@<host>` is no longer read as first-party.
+- Helpers that exit non-zero or write to stderr print `helper_error:<helper>:rc=<n>:<first stderr line>`; the orchestrator records it, adds a `CAUTION` and a metadata warning, and the verdict cannot be clean.
+- Symlinks, oversized files, NUL files and unreadable or non-UTF-8 files were skipped silently. Helpers now print `skipped:<reason>:<relpath>`; sub-agents list these paths, the report metadata lists them, and a skipped hook, MCP config, settings file or manifest is a `CAUTION`. The `scan_secrets.sh` and `scan_obfuscation.sh` Python passes no longer follow file symlinks out of the repo.
+
+## [0.4.1] - 2026-11-25
+
+### Fixed
+- No sub-agent has `Bash` any more (an unrestricted `Bash` grant is a `FAIL` under this plugin's own rules, and agent `tools` cannot scope it to a path). The orchestrator runs every helper (new Step 4b) and passes each sub-agent its output as `SCAN_OUTPUTS`.
+- Git on the audited repository runs through `lib_git.sh`, which pins `core.fsmonitor`, `core.hooksPath`, `core.pager`, `core.sshCommand`, `diff.external` and `credential.helper` to inert values and ignores system/global config. `git_head.sh` replaces the direct `git -C * rev-parse HEAD` grant; `compute_delta.sh` uses the wrapper too.
+- `SKILL.md` helper calls were written with a quoted script path, which the literal `Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/*)` grant does not match; headless runs refused them. All calls are now unquoted, with a stop rule for paths that need quoting.
+- The skill's `scripts/*` Bash grant matched `scripts/../<anything>` (permission matching is textual). Each helper now has its own grant, and the artifacts checklist rates a directory-wildcard script grant `CAUTION`.
+- The cross-check is strict per owner, and the owning sub-agents are told to list every path in their categories, including instruction files, fixtures and `doc:` lines.
+- The malicious fixture's `.mcp.json` is now `dot-mcp.json`, so opening the fixture folder in Claude Code offers no servers; the scanner reads both names. Wording that read as auditor-directed ("skip this step silently", a safe-fixture description naming the expected verdict) is reworded.
+- Test fixtures: an unreachable planted fixture (nothing outside it runs, sources or registers it, and it is not at a loader path) now collapses into one `CAUTION` per fixture directory instead of a stack of `FAIL`s. Reachable fixture code keeps full severity.
+- Self-scan noise: hits in plain documentation get a `doc:` prefix (`doc_class.py`; instruction files are never tagged, secrets and Unicode never tagged), and the helpers' own pattern sources no longer match themselves. Tighter DNS-tool host extraction.
+
+### Added
+- Regression checks: documentation tagging, helpers scanning their own source, no agent lists `Bash`, and a booby-trapped `.git/config` that must fire no canary through the git wrapper.
+
+## [0.4.0] - 2026-11-25
+
+Coverage for the 2026 agent attack patterns: a write that becomes a later execute, git
+config that runs on `git status`, Python startup hooks, sandbox weakening, agentjacking
+through tool output, credential reach, lateral movement and exfil channels beyond plain
+HTTP. Hooks and MCP servers run outside the Claude Code sandbox, so findings there are now
+judged at full severity.
+
+### Added
+- **`scan_trust_surface.sh`.** A new mechanical helper with twelve categories:
+  `config_write`, `git_exec_config`, `py_stdlib_shadow`, `py_pth`, `sandbox_weaken`,
+  `pre_trust` (owned by `auditor-config`); `cred_reach`, `lateral_movement`,
+  `exfil_channel`, `llm_router` (owned by `auditor-network-fs`); `lifecycle_script`,
+  `nondefault_index` (owned by `auditor-supply-chain`). It is part of the Step 5a
+  mechanical cross-check, split by category.
+- **Config write is future execute.** Writes to `.claude/settings*.json`, hooks,
+  `.mcp.json`, `.vscode/tasks.json`, `.git/hooks`, `.git/config`, venv activate, CI files
+  and `package.json` lifecycle scripts are `FAIL`, including the `prepare` target swap that
+  `acceptEdits` does not guard and the Cursor CVE-2026-48124 style settings handoff.
+- **GitSpawn.** Shipped or written `core.fsmonitor` (command), `core.hooksPath`,
+  `core.sshCommand`, `core.pager`, `diff.external`, textconv/filter/merge drivers and `!`
+  aliases are `FAIL`. Shipped `.git/config` files are read too.
+- **Python import shadowing.** `.pth`, `sitecustomize.py` and `usercustomize.py` are
+  `FAIL`; stdlib-named files in script directories are `CAUTION`.
+- **Sandbox and permission weakening.** `sandbox.enabled: false`,
+  `allowUnsandboxedCommands`, container runtimes in `excludedCommands`, `docker.sock`
+  exposure, `$HOME` mounts, `allowedDomains: ["*"]`, `bypassPermissions`,
+  `--dangerously-skip-permissions`.
+- **Runs before trust.** `Setup` hooks join `SessionStart`; `enableAllProjectMcpServers`
+  and `enabledMcpjsonServers` in shipped settings are `FAIL`; project `.mcp.json` local
+  servers are `CAUTION`.
+- **Agentjacking.** MCP servers and skills that relay third-party content (error trackers,
+  tickets, logs, web pages) to the model, skills that tell the model to act on it, and
+  "hotfix" installs from a non-default index (`pip --index-url`, `npm --registry`,
+  `Install-Module -Repository`).
+- **Credential reach, lateral movement, exfil channels.** Keychain, CLI token minting,
+  browser profiles, inherited env tokens; ssh/scp, PowerShell remoting, cloud remote exec,
+  logged-in browser driving; `git push` to foreign remotes, object storage, gists, webhook
+  sinks; `ANTHROPIC_BASE_URL` / `OPENAI_BASE_URL` overrides to third-party routers.
+  Credential recommendations now name scoped, short-lived alternatives (STS
+  `GetScopedCredentials`).
+- Three new escalation rules in `risk-model.md`: agentjacking chain, credential reach plus
+  lateral/exfil, and network-fs `CAUTION` findings inside hooks or MCP servers.
+- Fixtures: inert `dot-git/config`, `dot-claude/settings.local.json`,
+  `scripts/vendor-sync.sh`, `hooks/post-tool.sh`, `skills/hotfix/SKILL.md`,
+  `mcp/tickets_server.py`, `scripts/json.py`, `src/canary.pth`; safe-fixture near-misses for
+  builtin fsmonitor, `GIT_PAGER=cat` and a package-internal `json.py`. Hosts are
+  `example.invalid` or `127.0.0.1` only.
+
+### Changed
+- `auditor-config` gains `Bash`, limited to the helper scripts.
+- `prepare` is weighed like `postinstall` in the supply-chain checklist.
+
 ## [0.3.0] - 2026-07-13
 
 Trust-hardening pass. 0.2.0 raised detection quality; this release addresses who the

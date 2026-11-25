@@ -29,6 +29,8 @@ Read the `scripts` block. Flag the presence of any of these as `CAUTION`:
 
 If the script body contains `curl`, `wget`, a remote URL fetch, or invocation of a binary not present in the repo source — escalate to `FAIL`.
 
+`prepare` deserves the same weight as `postinstall`: it runs on a plain `npm install` in the repo and on install from a git URL. Also escalate to `FAIL` when the script runs a repo file that another script, sync step or skill later overwrites (the target looks benign at audit time and is swapped afterwards), or when anything in the repo edits `scripts` through `npm pkg set` / `npm set-script`. Claude Code `acceptEdits` does not guard `package.json`, so an agent can make that edit without a prompt. The helper `scripts/scan_trust_surface.sh` lists lifecycle keys as `lifecycle_script`.
+
 ### 2. Typosquatting heuristics
 
 For each dependency in `package.json`, `requirements.txt`, `pyproject.toml`, `Cargo.toml`, `go.mod`, etc., compute a Levenshtein distance against a baseline list of popular packages:
@@ -102,6 +104,17 @@ Check for `.npmrc`, `.yarnrc`, `pip.conf`, `.cargo/config.toml`:
 - A registry override pointing at a publicly known mirror with no integrity check is `CAUTION`.
 - A registry override that disables integrity checks (`strict-ssl=false`, `package-lock=false`) is `FAIL`.
 
+### 8a. Non-default package indexes in instructions
+
+Agentjacking often ends with "install the hotfix". Flag any skill, agent, command, hook, README step or script that installs from a non-default index (the helper reports these as `nondefault_index`):
+
+- `pip install --index-url`, `--extra-index-url`, `-i <url>`, `--trusted-host` → `FAIL` in a skill, agent, command or hook; `CAUTION` in a README (often a private org mirror). `--extra-index-url` is dependency confusion by design.
+- `npm|pnpm|yarn|npx|bun ... --registry`, `npm config set registry` → same rule.
+- `Install-Module` / `Install-PSResource` with `-Repository`, `Register-PSRepository` → same rule.
+- `gem install --source` → same rule.
+
+An explicit `pypi.org` or `registry.npmjs.org` index is `OK`.
+
 ### 9. Vendored binaries marketed as code
 
 If `node_modules/`, `vendor/`, or `dist/` is committed to the repo and the build step recompiles them — `CAUTION` (auditing the source is harder when binaries are tracked).
@@ -127,5 +140,6 @@ If the `bin` field of `package.json` points at a checked-in binary not built fro
 - All git submodules pinned to specific commits
 - MCP servers pinned to specific versions (or no MCP servers declared)
 - No registry overrides that weaken integrity checks
+- No install instructions that point at a non-default package index
 - No vendored binaries committed to the repo
 ```

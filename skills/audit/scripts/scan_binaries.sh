@@ -9,6 +9,10 @@
 
 set -euo pipefail
 
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib_status.sh
+source "${HERE}/lib_status.sh"
+
 if [[ $# -lt 1 ]]; then
   echo "usage: scan_binaries.sh <repo_path>" >&2
   exit 64

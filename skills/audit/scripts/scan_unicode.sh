@@ -11,11 +11,16 @@
 #   - other invisible format / control characters
 #   - Cyrillic/Greek homoglyphs mixed into an otherwise ASCII-Latin word
 #
-# Output: <path>:<line>:<category>:<codepoint(s)>
+# Output: <path>:<line>:<category>:<codepoint(s)>, and
+#         skipped:<reason>:<relpath> for files it could not read as UTF-8 text.
 #
 # Read-only. Never modifies the repository.
 
 set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib_status.sh
+source "${HERE}/lib_status.sh"
 
 if [[ $# -lt 1 ]]; then
   echo "usage: scan_unicode.sh <repo_path>" >&2
@@ -28,7 +33,7 @@ if [[ ! -d "${REPO}" ]]; then
   exit 65
 fi
 
-python3 - "${REPO}" <<'PYEOF'
+python3 -I - "${REPO}" <<'PYEOF'
 import os
 import sys
 import unicodedata
@@ -68,11 +73,19 @@ for root, dirs, files in os.walk(repo):
         if fn in EXCLUDE_FILES:
             continue
         path = os.path.join(root, fn)
+        rel = os.path.relpath(path, repo)
+        if os.path.islink(path):
+            print(f"skipped:symlink:{rel}")
+            continue
         try:
             with open(path, "r", encoding="utf-8", errors="strict") as f:
                 lines = f.readlines()
-        except (OSError, UnicodeDecodeError):
-            # Binary or non-UTF-8; not a text artifact we can reason about.
+        except OSError:
+            print(f"skipped:unreadable:{rel}")
+            continue
+        except UnicodeDecodeError:
+            # Binary or non-UTF-8: invisible characters here go unseen, so say so.
+            print(f"skipped:undecodable:{rel}")
             continue
 
         for lineno, line in enumerate(lines, start=1):

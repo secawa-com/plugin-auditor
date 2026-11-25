@@ -4,7 +4,7 @@ Static security audit for projects extending Claude (skills, agents, hooks, plug
 
 **Author**: Piotr Kaźmierczak - CEO [Secawa](https://secawa.com) \
 **License**: MIT \
-**Version**: 0.3.0
+**Version**: 0.4.2
 
 ---
 
@@ -36,7 +36,7 @@ The plugin never executes audited code. It only reads, greps, and reasons.
    ```bash
    /plugin
    ```
-   `plugin-auditor` should appear with version `0.3.0`. Type `/` and start typing `plug`, and the entry `/plugin-auditor:audit` should be listed in the slash menu.
+   `plugin-auditor` should appear with version `0.4.2`. Type `/` and start typing `plug`, and the entry `/plugin-auditor:audit` should be listed in the slash menu.
 4. The first audit will create `~/.claude/plugin-auditor-reports/` automatically. No other system files are touched.
 
 ---
@@ -150,8 +150,8 @@ Each sub-agent is a self-contained markdown definition under `agents/`. The orch
 | `plugin-auditor:auditor-static`              | Secrets, obfuscation, dangerous shell patterns, binaries, hidden files, modifications to global dotfiles.                                                                                          |
 | `plugin-auditor:auditor-claude-artifacts`    | SKILL.md prompt injection, agent permissions, persistence hooks (PreToolUse, PostToolUse, SessionStart), MCP server abuse, slash command tool overreach, Claude Code history theft.                |
 | `plugin-auditor:auditor-supply-chain`        | `package.json` lifecycle scripts, `requirements.txt` and `pyproject.toml` typosquatting, lockfile integrity, git submodules pointing to forks, runtime `npx` fetches, unverified git dependencies. |
-| `plugin-auditor:auditor-config`              | `settings.json` permission overrides, committed `.env` files, CI/CD workflow abuse (`pull_request_target`, secrets dump, self-hosted runners), Dockerfile risks, sandbox-evasion patterns.         |
-| `plugin-auditor:auditor-network-fs`          | URL allowlist enforcement, file-system scope, path traversal, sensitive-path access (`~/.ssh`, `~/.aws`, `~/.config/gh`), data exfiltration chains, long-running background processes.             |
+| `plugin-auditor:auditor-config`              | `settings.json` permission overrides, committed `.env` files, CI/CD workflow abuse (`pull_request_target`, secrets dump, self-hosted runners), Dockerfile risks, sandbox-evasion patterns, writes to files other trusted processes load, executing git config (GitSpawn), Python `.pth` / stdlib shadowing, sandbox and permission weakening, MCP auto-approval. |
+| `plugin-auditor:auditor-network-fs`          | URL allowlist enforcement, file-system scope, path traversal, sensitive-path access (`~/.ssh`, `~/.aws`, `~/.config/gh`), data exfiltration chains, long-running background processes, keychain and CLI-token reach, lateral movement (ssh, PowerShell remoting, browser driving), git-push / S3 / gist exfil, third-party model routers. |
 | `plugin-auditor:auditor-injection-guard`     | Second, independent prompt-injection pass over the LLM-steering artifacts only (SKILL.md, agents, commands, CLAUDE.md, hooks, `.mcp.json`, plugin.json, and any `*.md` with `name`/`description` frontmatter). Runs on Haiku with no Bash, returns strict JSON, and is escalate-only: its findings can raise severity, never lower it.                |
 
 
@@ -181,6 +181,12 @@ The check catalogue is grouped by concern level and aligned with Anthropic's ent
 - Modifications to global dotfiles (`~/.zshrc`, `~/.bashrc`, `~/.gitconfig`).
 - Reads of Claude Code history (`~/.claude/projects/**/*.jsonl`).
 - CI/CD `pull_request_target` abuse, secrets dump, or self-hosted runner exposure.
+- Writes to files another trusted process loads later: `.claude/settings*.json`, hooks, `.mcp.json`, `.vscode/tasks.json`, `.git/hooks`, `.git/config`, venv activate, CI files, `package.json` lifecycle scripts.
+- Executing git config (`core.fsmonitor`, `core.hooksPath`, `core.sshCommand`, `core.pager`, `diff.external`, filter/textconv drivers).
+- Python startup hooks: `.pth`, `sitecustomize.py`.
+- Sandbox or permission weakening: `sandbox.enabled: false`, `allowUnsandboxedCommands`, docker in `excludedCommands`, `docker.sock` exposure, `allowedDomains: ["*"]`, `bypassPermissions`, `--dangerously-skip-permissions`.
+- Credential reach, lateral movement or non-HTTP exfil from a hook or MCP server (they run outside the sandbox), and model base-URL overrides to third-party routers.
+- Skills that tell the model to act on third-party tool output or install a "hotfix" from a non-default index (agentjacking).
 
 ### Medium concern (each adds one point to the risk score)
 
@@ -194,6 +200,8 @@ The check catalogue is grouped by concern level and aligned with Anthropic's ent
 - Conditional behaviour based on `CI=true` (sandbox evasion).
 - Binaries committed to the repository (`.exe`, `.so`, `.dylib`, `.pyc`).
 - `settings.json` permission overrides that auto-approve dangerous tools.
+- `prepare` scripts, stdlib-named Python files in script directories, project `.mcp.json` local servers.
+- MCP servers that relay third-party content (error trackers, tickets, logs) to the model, or hold broader tokens than they need.
 
 ---
 
@@ -243,10 +251,8 @@ Plugin-auditor itself runs inside Claude Code with elevated trust — it reads y
 **Tools the plugin grants itself** (declared in `agents/*.md` and `skills/audit/SKILL.md`):
 
 - `Read`, `Grep`, `Glob` — every component, every audit. Read-only inspection.
-- `Bash` — only for two narrow uses:
-  - the orchestrating skill runs `bash ${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/*` (helper scripts shipped with the plugin) and `git -C * rev-parse HEAD` (no other git verbs are pre-approved);
-  - sub-agents `auditor-static`, `auditor-supply-chain`, `auditor-network-fs` keep `Bash` in their allowlist for grep/find/awk/python invocations against the audited repository, plus the helper scripts above.
-  - `auditor-claude-artifacts` and `auditor-injection-guard` deliberately have **no** `Bash` at all — the two passes that read the most adversarial input (LLM-steering artifacts) get `Read`/`Grep`/`Glob` only, so a compromised prompt cannot reach a shell.
+- `Bash` (orchestrator only): one grant per helper script shipped with the plugin (`bash ${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/<helper> *`), never a directory wildcard, which would also match `scripts/../<anything>`. No direct git call is pre-approved; `git_head.sh` and `compute_delta.sh` run git with the target's exec-capable config (`core.fsmonitor`, `core.hooksPath`, `core.pager`, `diff.external`...) pinned to inert values.
+  - No sub-agent has `Bash`. A sub-agent `tools` list cannot scope Bash to a path, so the orchestrator runs the helpers and passes their output in; every sub-agent only has `Read`, `Grep` and `Glob`, and a compromised prompt cannot reach a shell.
 - `Agent` — the orchestrator only. Used to fan out to the six sub-agents in parallel. Sub-agents themselves cannot spawn further sub-agents (a Claude Code platform limit, not just policy).
 - `Write` — the orchestrator only, restricted to `${HOME}/.claude/plugin-auditor-reports/**`. Reports and the delta-mode state file land there; no other path is pre-approved.
 - `AskUserQuestion` — the orchestrator only. Used for the post-report drill-down prompt.
